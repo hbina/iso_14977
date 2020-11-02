@@ -99,15 +99,40 @@ impl EBNFParser {
         })
     }
 
+    pub fn parse_syntactic_exception(pair: Pair<Rule>) -> Option<SyntacticException> {
+        let mut pair = pair.into_inner();
+        Some(SyntacticException {
+            content: String::from(pair.as_str()),
+        })
+    }
+
     pub fn parse_syntactic_term(pair: Pair<Rule>) -> Option<SyntacticTerm> {
         let mut pair = pair.into_inner();
-        println!("parse_syntactic_term:\n{:#?}", pair);
-        None
+        match (pair.next(), pair.next(), pair.next()) {
+            (Some(syntactic_factor), Some(except_symbol), Some(syntactic_exception)) => match (
+                syntactic_factor.as_rule(),
+                except_symbol.as_rule(),
+                syntactic_exception.as_rule(),
+            ) {
+                (Rule::syntactic_factor, Rule::except_symbol, Rule::syntactic_exception) => {
+                    Some(SyntacticTerm {
+                        factor: EBNFParser::parse_syntactic_factor(syntactic_factor)?,
+                        // NOTE: If we are this far, failure to obtain a syntactic_exception is not equivalent to it not existing.
+                        except: Some(EBNFParser::parse_syntactic_exception(syntactic_exception)?),
+                    })
+                }
+                _ => panic!("parse_syntactic_term is unable to match against the pattern (syntactic_factor, except_symbol, syntactic_exception)"),
+            },
+            (Some(syntactic_factor), None, None) => Some(SyntacticTerm {
+                factor: EBNFParser::parse_syntactic_factor(syntactic_factor)?,
+                except: None,
+            }),
+            _ => panic!("Insufficient number of pairs..."),
+        }
     }
 
     pub fn parse_syntactic_factor(pair: Pair<Rule>) -> Option<SyntacticFactor> {
         let mut pair = pair.into_inner();
-        println!("parse_syntactic_factor:\n{:#?}", pair);
         match (pair.next(), pair.next(), pair.next()) {
             (Some(integer), Some(repetition_symbol), Some(syntactic_primary)) => match (
                 integer.as_rule(),
@@ -204,6 +229,16 @@ mod tests {
     fn parse_syntactic_factor() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(pair) = EBNFParser::parse(Rule::syntactic_factor, r#"5 * {"abcde"}"#)?.next() {
             let result = EBNFParser::parse_syntactic_factor(pair);
+            println!("result:\n{:#?}", result);
+        };
+        Ok(())
+    }
+
+    #[test]
+    fn parse_syntactic_term() -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(pair) = EBNFParser::parse(Rule::syntactic_term, r#"{"abcde"} - "xyz""#)?.next()
+        {
+            let result = EBNFParser::parse_syntactic_term(pair);
             println!("result:\n{:#?}", result);
         };
         Ok(())
