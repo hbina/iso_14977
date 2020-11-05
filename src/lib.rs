@@ -1,7 +1,10 @@
 #[macro_use]
 extern crate pest_derive;
 
-use pest::iterators::{Pair, Pairs};
+use pest::{
+    iterators::{Pair, Pairs},
+    Parser,
+};
 
 #[derive(Parser)]
 #[grammar = "ebnf.pest"]
@@ -9,17 +12,60 @@ pub struct EBNFParser;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Syntax {
-    rules: Vec<SyntaxRule>,
+    rules: std::collections::HashMap<MetaIdentifier, SyntaxRule>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
+pub struct Grammar {
+    syntax: Syntax,
+    entry: MetaIdentifier,
+}
+
+impl Grammar {
+    /// NOTE: AFAIK, the ISO does not mention any entry meta_identifier (e.g. the `main` function in C).
+    /// So we have to ask for it from the user because the ISO _does_ requires there to be an entry point.
+    pub fn new(entry: &str, grammar: &str) -> Grammar {
+        let syntax = EBNFParser::parse(Rule::syntax, grammar)
+            .ok()
+            .unwrap()
+            .next()
+            .map(EBNFParser::parse_syntax)
+            .unwrap()
+            .unwrap();
+        let found = syntax.rules.contains_key(&entry.into());
+        if found {
+            Grammar {
+                syntax,
+                entry: entry.into(),
+            }
+        } else {
+            panic!("cannot find");
+        }
+    }
+
+    pub fn validate(&self, text: &str) -> bool {
+        println!("self:\n{:#?}", self);
+        let breadth_stack = vec![];
+
+        true
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct MetaIdentifier {
     value: String,
 }
 
+impl From<&str> for MetaIdentifier {
+    fn from(string: &str) -> Self {
+        Self {
+            value: string.to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct SyntaxRule {
-    identifier: MetaIdentifier,
     definitions: DefinitionList,
 }
 
@@ -68,7 +114,7 @@ impl EBNFParser {
             Rule::meta_identifier => Some(MetaIdentifier {
                 value: String::from(pair.as_str()),
             }),
-            _ => None,
+            err => panic!("error:\n{:#?}", err),
         }
     }
 
@@ -76,16 +122,16 @@ impl EBNFParser {
         let pair = pair.into_inner();
         Some(Syntax {
             rules: pair
-                // TODO: We should really check that EOI only exists in the beginning.
+                // TODO: We should only check that EOI exists at the end.
                 .filter(|rule| rule.as_rule() != Rule::EOI)
                 .map(|rule| EBNFParser::parse_syntax_rule(rule))
-                .collect::<Option<Vec<SyntaxRule>>>()?,
+                .collect::<Option<std::collections::HashMap<MetaIdentifier, SyntaxRule>>>()?,
         })
     }
 
-    pub fn parse_syntax_rule(pair: Pair<Rule>) -> Option<SyntaxRule> {
+    pub fn parse_syntax_rule(pair: Pair<Rule>) -> Option<(MetaIdentifier, SyntaxRule)> {
         let mut pair = pair.into_inner();
-        Some(match (pair.next(), pair.next(), pair.next(), pair.next()) {
+        match (pair.next(), pair.next(), pair.next(), pair.next()) {
             (
                 Some(meta_identifier),
                 Some(defining_symbol),
@@ -102,56 +148,39 @@ impl EBNFParser {
                     Rule::defining_symbol,
                     Rule::definition_list,
                     Rule::terminator_symbol,
-                ) => SyntaxRule {
-                    identifier: EBNFParser::parse_meta_identifier(meta_identifier)?,
-                    definitions: EBNFParser::parse_definition_list(definition_list)?,
-                },
-                _ => panic!(
-                    r#"
-                parse_syntax_rule is unable to match against the required pattern.\n
-                Received:\n
-                1. {:#?}\n
-                2. {:#?}\n
-                3. {:#?}\n
-                4. {:#?}\n
-                rest :{:#?}"#,
-                    meta_identifier, defining_symbol, definition_list, terminator_symbol, pair
-                ),
+                ) => Some((
+                    EBNFParser::parse_meta_identifier(meta_identifier)?,
+                    SyntaxRule {
+                        definitions: EBNFParser::parse_definition_list(definition_list)?,
+                    },
+                )),
+                err => panic!("error:\n{:#?}", err),
             },
-            _ => panic!(
-                r#"
-                parse_syntax_rule is unable to acquire enough pairs.\n
-                pairs:{:#?}"#,
-                pair
-            ),
-        })
+            err => panic!("error:\n{:#?}", err),
+        }
     }
 
     pub fn parse_definition_list(pair: Pair<Rule>) -> Option<DefinitionList> {
         let pair = pair.into_inner();
-        Some(DefinitionList {
-            list: pair
-                .step_by(2)
-                .map(|definition_list| EBNFParser::parse_single_definition(definition_list))
-                .collect::<Option<Vec<SingleDefinition>>>()?,
-        })
+        pair.step_by(2)
+            .map(|definition_list| EBNFParser::parse_single_definition(definition_list))
+            .collect::<Option<Vec<SingleDefinition>>>()
+            .map(|list| DefinitionList { list })
     }
 
     pub fn parse_single_definition(pair: Pair<Rule>) -> Option<SingleDefinition> {
         let pair = pair.into_inner();
-        Some(SingleDefinition {
-            terms: pair
-                .step_by(2)
-                .map(|syntactic_term| EBNFParser::parse_syntactic_term(syntactic_term))
-                .collect::<Option<Vec<SyntacticTerm>>>()?,
-        })
+        pair.step_by(2)
+            .map(|syntactic_term| EBNFParser::parse_syntactic_term(syntactic_term))
+            .collect::<Option<Vec<SyntacticTerm>>>()
+            .map(|terms| SingleDefinition { terms })
     }
 
-    pub fn parse_syntactic_exception(pair: Pair<Rule>) -> Option<SyntacticException> {
+    pub fn parse_syntactic_exception(pair: Pair<Rule>) -> SyntacticException {
         let pair = pair.into_inner();
-        Some(SyntacticException {
+        SyntacticException {
             content: String::from(pair.as_str()),
-        })
+        }
     }
 
     pub fn parse_syntactic_term(pair: Pair<Rule>) -> Option<SyntacticTerm> {
@@ -165,36 +194,16 @@ impl EBNFParser {
                 (Rule::syntactic_factor, Rule::except_symbol, Rule::syntactic_exception) => {
                     Some(SyntacticTerm {
                         factor: EBNFParser::parse_syntactic_factor(syntactic_factor)?,
-                        // NOTE: If we are this far, failure to obtain a syntactic_exception is not equivalent to it not existing.
-                        except: Some(EBNFParser::parse_syntactic_exception(syntactic_exception)?),
+                        except: Some(EBNFParser::parse_syntactic_exception(syntactic_exception)),
                     })
                 }
-                _ => panic!(
-                    r#"
-parse_syntactic_term is unable to match against the required pattern.
-Received:
-1. {:#?}
-2. {:#?}
-3. {:#?}
-rest.\n{:#?}
-                    "#,
-                    syntactic_factor, except_symbol, syntactic_exception, pair
-                ),
+                err => panic!("error:\n{:#?}", err),
             },
             (Some(syntactic_factor), None, None) => Some(SyntacticTerm {
                 factor: EBNFParser::parse_syntactic_factor(syntactic_factor)?,
                 except: None,
             }),
-            triplets => panic!(
-                r#"
-parse_syntax_rule is unable to acquire enough pairs.
-triplets:
-    {:#?}
-pairs:
-    {:#?}
-                "#,
-                triplets, pair
-            ),
+            err => panic!("error:\n{:#?}", err),
         }
     }
 
@@ -208,29 +217,28 @@ pairs:
             ) {
                 (Rule::integer, Rule::repetition_symbol, Rule::syntactic_primary) => {
                     Some(SyntacticFactor {
-                        repetition: integer
-                            .as_str()
-                            .parse::<usize>()
-                            .expect("Unable to parse integer required for syntactic_factor."),
+                        repetition: integer.as_str().parse::<usize>().expect(&*format!(
+                            "Unable to parse the string '{}' as integer.",
+                            integer.as_str()
+                        )),
                         primary: EBNFParser::parse_syntactic_primary(syntactic_primary)?,
                     })
                 }
-                _ => panic!("parse_syntactic_factor is unable to match with the pattern (integer, repetition_symbol, syntactic_primary)"),
+                err => panic!("error:\n{:#?}", err),
             },
             (Some(syntactic_primary), None, None) => match syntactic_primary.as_rule() {
                 Rule::syntactic_primary => Some(SyntacticFactor {
                     repetition: 1,
                     primary: EBNFParser::parse_syntactic_primary(syntactic_primary)?,
                 }),
-                rule => panic!("expected Rule::syntactic_primary, instead we got {:#?}", rule),
+                err => panic!("error:\n{:#?}", err),
             },
-            triplet => panic!(r#"
-            Invalid sequence of pairs given to parse_syntactic_factor.\n
-            triplet:\n{:#?}\n
-            rest:\n{:#?}\n"#, triplet, pair),
+            err => panic!("error:\n{:#?}", err),
         }
     }
 
+    /// Make this function accept a specialized enum to remove the class of errors of using
+    /// mismatched pairs or the wrong values fro the pairs.
     fn parse_definition_list_in_sequence(
         mut pair: Pairs<Rule>,
         sequence_begin_symbol: Rule,
@@ -250,13 +258,17 @@ pairs:
                         {
                             Some(EBNFParser::parse_definition_list(definition_list)?)
                         } else {
-                            None
+                            panic!(
+                                "mismatch begin and end symbols:\n{:#?} and {:#?}",
+                                start_repeat_symbol.as_str(),
+                                start_repeat_symbol.as_str()
+                            )
                         }
                     }
-                    _ => None,
+                    err => panic!("error:\n{:#?}", err),
                 }
             }
-            _ => None,
+            err => panic!("error:\n{:#?}", err),
         }
     }
 
@@ -284,7 +296,7 @@ pairs:
                 SyntacticPrimary::Grouped(EBNFParser::parse_definition_list_in_sequence(
                     pair,
                     Rule::start_group_symbol,
-                    Rule::start_group_symbol,
+                    Rule::end_group_symbol,
                 )?)
             }
             Rule::meta_identifier => {
@@ -292,12 +304,7 @@ pairs:
             }
             Rule::terminal_string => SyntacticPrimary::TerminalString(String::from(pair.as_str())),
             Rule::special_sequence => SyntacticPrimary::Special(String::from(pair.as_str())),
-            _ => panic!(
-                r#"
-            parse_syntactic_primary is unable to match any of the expected enum.
-            Instead, we got {:#?}"#,
-                pair
-            ),
+            err => panic!("error:\n{:#?}", err),
         })
     }
 }
@@ -415,42 +422,19 @@ mod tests {
         if let Some(pair) = EBNFParser::parse(Rule::syntax_rule, r#"letter = "a" | "b";"#)?.next() {
             assert_eq!(
                 EBNFParser::parse_syntax_rule(pair),
-                Some(SyntaxRule {
-                    identifier: MetaIdentifier {
+                Some((
+                    MetaIdentifier {
                         value: "letter".to_string()
                     },
-                    definitions: EBNFParser::parse_definition_list(
-                        EBNFParser::parse(Rule::definition_list, r#""a" | "b""#)?
-                            .next()
-                            .unwrap()
-                    )
-                    .unwrap()
-                })
-            );
-        };
-        if let Some(pair) = EBNFParser::parse(
-            Rule::syntax,
-            r#"
-        (* comment *) letter (* comment *)
-        = (* comment *) "a" (* comment *) | (* comment *) "b" (* comment *) ;"#,
-        )?
-        .next()
-        {
-            assert_eq!(
-                EBNFParser::parse_syntax(pair),
-                Some(Syntax {
-                    rules: vec![SyntaxRule {
-                        identifier: MetaIdentifier {
-                            value: "letter".to_string()
-                        },
+                    SyntaxRule {
                         definitions: EBNFParser::parse_definition_list(
                             EBNFParser::parse(Rule::definition_list, r#""a" | "b""#)?
                                 .next()
                                 .unwrap()
                         )
                         .unwrap()
-                    }]
-                })
+                    }
+                ))
             );
         };
         Ok(())
@@ -528,6 +512,21 @@ mod tests {
             // TODO: Complete this :)
             // assert_eq!(EBNFParser::parse_syntax(pair), None);
         };
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_simple_validate() -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            Grammar::new(
+                "letter",
+                r#"
+    letter = letter , "a" | "A";
+    "#,
+            )
+            .validate("Aaaaa"),
+            true
+        );
         Ok(())
     }
 }
