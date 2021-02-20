@@ -59,11 +59,6 @@ terminator_symbol = {
     | "."
 }
 
-// see 7.5
-other_character = {
-    " " | ":" | "+" | "_" | "%" | "@" | "&" | "#" | "$" | "<" | ">" | "\\" | "ˆ" | "‘" | "˜"
-}
-
 // see 7.6
 space_character = { " " }
 
@@ -82,7 +77,8 @@ vertical_tabulation_character = {
 // ISO 6429 character Form Feed
 form_feed = { "\\f" }
 
-terminal_character = {
+// this is a helper to properly defined other_character for all of Unicode
+other_terminal_character = {
     ASCII_ALPHA
     | ASCII_DIGIT
     | concatenate_symbol
@@ -102,6 +98,15 @@ terminal_character = {
     | start_option_symbol
     | start_repeat_symbol
     | terminator_symbol
+}
+
+// see 7.5
+other_character = {
+    !other_terminal_character ~ ANY
+}
+
+terminal_character = {
+    other_terminal_character
     | other_character
 }
 
