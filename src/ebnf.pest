@@ -130,14 +130,13 @@ second_terminal_character = {
 integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
 
 // See 4.14
-meta_identifier = @{ ASCII_ALPHA ~ (meta_identifier_character)* }
+meta_identifier = @{ ASCII_ALPHA ~ (space_character? ~ meta_identifier_character)* }
 
 // See 4.15
 meta_identifier_character = _{
     ASCII_ALPHA
     | ASCII_DIGIT
     | "_"
-    | " "
 }
 
 // See 4.19
