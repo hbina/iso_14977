@@ -313,7 +313,7 @@ mod tests {
     fn parse_symbols() -> Result<(), Box<dyn std::error::Error>> {
         EBNFParser::parse(Rule::defining_symbol, r#"="#)?;
         EBNFParser::parse(Rule::definition_separator_symbol, r#"|"#)?;
-        EBNFParser::parse(Rule::first_quote_symbol, r#"’"#)?;
+        EBNFParser::parse(Rule::first_quote_symbol, r#"'"#)?;
         EBNFParser::parse(Rule::second_quote_symbol, r#"""#)?;
         EBNFParser::parse(Rule::repetition_symbol, r#"*"#)?;
         Ok(())
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn parse_terminal_string() -> Result<(), Box<dyn std::error::Error>> {
         EBNFParser::parse(Rule::terminal_string, r#""b \r a \n d""#)?;
-        EBNFParser::parse(Rule::terminal_string, r#"’a’"#)?;
+        EBNFParser::parse(Rule::terminal_string, r#"'a'"#)?;
         Ok(())
     }
 
@@ -469,44 +469,44 @@ mod tests {
             and gap-separator in Extended BNF.
             *)
             (* see 7.2 *) 
-            letter = ’a’ | ’b’ | ’c’ | ’d’ | ’e’ | ’f’ | ’g’ | ’h’
-            | ’i’ | ’j’ | ’k’ | ’l’ | ’m’ | ’n’ | ’o’ | ’p’
-            | ’q’ | ’r’ | ’s’ | ’t’ | ’u’ | ’v’ | ’w’ | ’x’
-            | ’y’ | ’z’
-            | ’A’ | ’B’ | ’C’ | ’D’ | ’E’ | ’F’ | ’G’ | ’H’
-            | ’I’ | ’J’ | ’K’ | ’L’ | ’M’ | ’N’ | ’O’ | ’P’
-            | ’Q’ | ’R’ | ’S’ | ’T’ | ’U’ | ’V’ | ’W’ | ’X’
-            | ’Y’ | ’Z’;
+            letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h'
+            | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p'
+            | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x'
+            | 'y' | 'z'
+            | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
+            | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
+            | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
+            | 'Y' | 'Z';
             (* see 7.2 *) decimal_digit
-            = ’0’ | ’1’ | ’2’ | ’3’ | ’4’ | ’5’ | ’6’ | ’7’
-            | ’8’ | ’9’;
+            = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
+            | '8' | '9';
             (*
             The representation of the following
             terminal-characters is defined in clauses 7.3,
             7.4 and tables 1, 2.
             *)
-            concatenate_symbol = ’,’;
-            defining_symbol = ’=’;
-            definition_separator_symbol = ’|’ | ’//’ | ’!’;
-            end_comment_symbol = ’*)’;
-            end_group_symbol = ’)’;
-            end_option_symbol = ’]’ | ’/)’;
-            end_repeat_symbol = ’}’ | ’:)’;
-            except_symbol = ’-’;
-            first_quote_symbol = "’";
-            repetition_symbol = ’*’;
-            second_quote_symbol = ’"’;
-            special_sequence_symbol = ’?’;
-            start_comment_symbol = ’(*’;
-            start_group_symbol = ’(’;
-            start_option_symbol = ’[’ | ’(//’;
-            start_repeat_symbol = ’{’ | ’(:’;
-            terminator_symbol = ’;’ | ’.’;
+            concatenate_symbol = ',';
+            defining_symbol = '=';
+            definition_separator_symbol = '|' | '//' | '!';
+            end_comment_symbol = '*)';
+            end_group_symbol = ')';
+            end_option_symbol = ']' | '/)';
+            end_repeat_symbol = '}' | ':)';
+            except_symbol = '-';
+            first_quote_symbol = "'";
+            repetition_symbol = '*';
+            second_quote_symbol = '"';
+            special_sequence_symbol = '?';
+            start_comment_symbol = '(*';
+            start_group_symbol = '(';
+            start_option_symbol = '[' | '(//';
+            start_repeat_symbol = '{' | '(:';
+            terminator_symbol = ';' | '.';
             (* see 7.5 *) other_character
-            = ’ ’ | ’:’ | ’+’ | ’_’ | ’%’ | ’@’
-            | ’&’ | ’#’ | ’$’ | ’<’ | ’>’ | ’\’
-            | ’ˆ’ | ’‘’ | ’˜’;
-            (* see 7.6 *) space_character = ’ ’;                
+            = ' ' | ':' | '+' | '_' | '%' | '@'
+            | '&' | '#' | '$' | '<' | '>' | '\'
+            | 'ˆ' | '‘' | '˜';
+            (* see 7.6 *) space_character = ' ';
             "#,
         )?.next() {
             // TODO: Complete this :)
