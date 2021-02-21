@@ -196,15 +196,15 @@ syntactic_term = {
     syntactic_factor ~ (except_symbol ~ syntactic_exception)?
 }
 
-// See 4.7
-// NOTE: syntactic_exception must be checked ourselves.
-syntactic_exception = {
-    (integer ~ repetition_symbol)? ~ syntactic_primary
-}
-
 // See 4.8
 syntactic_factor = {
     (integer ~ repetition_symbol)? ~ syntactic_primary
+}
+
+// See 4.7
+// NOTE: syntactic_exception must be checked ourselves.
+syntactic_exception = {
+    syntactic_factor
 }
 
 // See 4.10

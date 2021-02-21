@@ -29,14 +29,9 @@ pub struct SingleDefinition {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct SyntacticException {
-    content: String,
-}
-
-#[derive(Debug, Eq, PartialEq)]
 pub struct SyntacticTerm {
     factor: SyntacticFactor,
-    except: Option<SyntacticException>,
+    except: Option<SyntacticFactor>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -140,11 +135,12 @@ impl EBNFParser {
         })
     }
 
-    pub fn parse_syntactic_exception(pair: Pair<Rule>) -> Option<SyntacticException> {
-        let pair = pair.into_inner();
-        Some(SyntacticException {
-            content: String::from(pair.as_str()),
-        })
+    pub fn parse_syntactic_exception(pair: Pair<Rule>) -> Option<SyntacticFactor> {
+        let pair = pair.into_inner().next().unwrap();
+        let factor = Self::parse_syntactic_factor(pair)?;
+        // FIXME: check restriction from § 4.7:
+        // factor must be non-recursive
+        Some(factor)
     }
 
     pub fn parse_syntactic_term(pair: Pair<Rule>) -> Option<SyntacticTerm> {
@@ -379,8 +375,9 @@ mod tests {
                             }]
                         })
                     },
-                    except: Some(SyntacticException {
-                        content: r#""xyz""#.to_string()
+                    except: Some(SyntacticFactor {
+                        repetition: 1,
+                        primary: SyntacticPrimary::TerminalString(r#""xyz""#.to_string()),
                     })
                 })
             )
