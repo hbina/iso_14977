@@ -52,6 +52,14 @@ pub enum SyntacticPrimary {
     TerminalString(String),
 }
 
+fn extract_content(pair: Pair<Rule>) -> String {
+    // remove the first and last character
+    let mut chars = pair.as_str().chars();
+    chars.next();
+    chars.next_back();
+    chars.collect::<String>()
+}
+
 impl EBNFParser {
     pub fn parse_meta_identifier(pair: Pair<Rule>) -> Option<String> {
         match pair.as_rule() {
@@ -279,8 +287,8 @@ pairs:
             Rule::meta_identifier => {
                 SyntacticPrimary::MetaIdentifier(EBNFParser::parse_meta_identifier(pair)?)
             }
-            Rule::terminal_string => SyntacticPrimary::TerminalString(String::from(pair.as_str())),
-            Rule::special_sequence => SyntacticPrimary::Special(String::from(pair.as_str())),
+            Rule::terminal_string => SyntacticPrimary::TerminalString(extract_content(pair)),
+            Rule::special_sequence => SyntacticPrimary::Special(extract_content(pair)),
             _ => panic!(
                 r#"
             parse_syntactic_primary is unable to match any of the expected enum.
@@ -338,9 +346,7 @@ mod tests {
                             terms: vec![SyntacticTerm {
                                 factor: SyntacticFactor {
                                     repetition: 1,
-                                    primary: SyntacticPrimary::TerminalString(
-                                        r#""abcde""#.to_string()
-                                    )
+                                    primary: SyntacticPrimary::TerminalString("abcde".to_string())
                                 },
                                 except: None
                             }]
@@ -367,7 +373,7 @@ mod tests {
                                     factor: SyntacticFactor {
                                         repetition: 1,
                                         primary: SyntacticPrimary::TerminalString(
-                                            r#""abcde""#.to_string()
+                                            "abcde".to_string()
                                         )
                                     },
                                     except: None
@@ -377,7 +383,7 @@ mod tests {
                     },
                     except: Some(SyntacticFactor {
                         repetition: 1,
-                        primary: SyntacticPrimary::TerminalString(r#""xyz""#.to_string()),
+                        primary: SyntacticPrimary::TerminalString("xyz".to_string()),
                     })
                 })
             )
