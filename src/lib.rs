@@ -127,6 +127,7 @@ impl EBNFParser {
         let pair = pair.into_inner();
         Some(DefinitionList {
             list: pair
+                // skipping over definition_separator_symbol's
                 .step_by(2)
                 .map(EBNFParser::parse_single_definition)
                 .collect::<Option<Vec<SingleDefinition>>>()?,
@@ -137,6 +138,7 @@ impl EBNFParser {
         let pair = pair.into_inner();
         Some(SingleDefinition {
             terms: pair
+                // skipping over concatenate_symbol's
                 .step_by(2)
                 .map(EBNFParser::parse_syntactic_term)
                 .collect::<Option<Vec<SyntacticTerm>>>()?,
@@ -319,18 +321,18 @@ mod tests {
 
     #[test]
     fn parse_symbols() -> Result<(), Box<dyn std::error::Error>> {
-        EBNFParser::parse(Rule::defining_symbol, r#"="#)?;
-        EBNFParser::parse(Rule::definition_separator_symbol, r#"|"#)?;
-        EBNFParser::parse(Rule::first_quote_symbol, r#"'"#)?;
+        EBNFParser::parse(Rule::defining_symbol, "=")?;
+        EBNFParser::parse(Rule::definition_separator_symbol, "|")?;
+        EBNFParser::parse(Rule::first_quote_symbol, "'")?;
         EBNFParser::parse(Rule::second_quote_symbol, r#"""#)?;
-        EBNFParser::parse(Rule::repetition_symbol, r#"*"#)?;
+        EBNFParser::parse(Rule::repetition_symbol, "*")?;
         Ok(())
     }
 
     #[test]
     fn parse_terminal_string() -> Result<(), Box<dyn std::error::Error>> {
         EBNFParser::parse(Rule::terminal_string, r#""b \r a \n d""#)?;
-        EBNFParser::parse(Rule::terminal_string, r#"'a'"#)?;
+        EBNFParser::parse(Rule::terminal_string, "'a'")?;
         Ok(())
     }
 
@@ -354,7 +356,7 @@ mod tests {
                     })
                 })
             )
-        };
+        }
         Ok(())
     }
 
@@ -387,7 +389,7 @@ mod tests {
                     })
                 })
             )
-        };
+        }
         Ok(())
     }
 
@@ -400,7 +402,7 @@ mod tests {
         .next()
         {
             EBNFParser::parse_definition_list(pair);
-        };
+        }
         Ok(())
     }
 
@@ -419,7 +421,7 @@ mod tests {
                     .unwrap()
                 })
             );
-        };
+        }
         if let Some(pair) = EBNFParser::parse(
             Rule::syntax,
             r#"
@@ -442,7 +444,7 @@ mod tests {
                     }]
                 })
             );
-        };
+        }
         Ok(())
     }
 
@@ -517,7 +519,7 @@ mod tests {
         )?.next() {
             // TODO: Complete this :)
             // assert_eq!(EBNFParser::parse_syntax(pair), None);
-        };
+        }
         Ok(())
     }
 }
