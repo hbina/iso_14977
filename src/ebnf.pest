@@ -59,11 +59,6 @@ terminator_symbol = {
     | "."
 }
 
-// see 7.5
-other_character = {
-    " " | ":" | "+" | "_" | "%" | "@" | "&" | "#" | "$" | "<" | ">" | "\\" | "ˆ" | "‘" | "˜"
-}
-
 // see 7.6
 space_character = { " " }
 
@@ -82,7 +77,8 @@ vertical_tabulation_character = {
 // ISO 6429 character Form Feed
 form_feed = { "\\f" }
 
-terminal_character = {
+// this is a helper to properly defined other_character for all of Unicode
+other_terminal_character = {
     ASCII_ALPHA
     | ASCII_DIGIT
     | concatenate_symbol
@@ -102,6 +98,15 @@ terminal_character = {
     | start_option_symbol
     | start_repeat_symbol
     | terminator_symbol
+}
+
+// see 7.5
+other_character = {
+    !other_terminal_character ~ ANY
+}
+
+terminal_character = {
+    other_terminal_character
     | other_character
 }
 
@@ -125,7 +130,7 @@ second_terminal_character = {
 integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
 
 // See 4.14
-meta_identifier = @{ ASCII_ALPHA ~ (meta_identifier_character)* }
+meta_identifier = @{ ASCII_ALPHA ~ (space_character? ~ meta_identifier_character)* }
 
 // See 4.15
 meta_identifier_character = _{
@@ -160,6 +165,11 @@ special_sequence_character = {
     | start_repeat_symbol
     | terminator_symbol
     | other_character
+}
+
+// See 4.21
+empty_sequence = {
+    ""
 }
 
 // The final part of the syntax defines the
@@ -205,6 +215,7 @@ syntactic_primary = {
     | meta_identifier
     | terminal_string
     | special_sequence
+    | empty_sequence
 }
 
 // See 4.11
