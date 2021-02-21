@@ -13,13 +13,8 @@ pub struct Syntax {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct MetaIdentifier {
-    value: String,
-}
-
-#[derive(Debug, Eq, PartialEq)]
 pub struct SyntaxRule {
-    identifier: MetaIdentifier,
+    identifier: String,
     definitions: DefinitionList,
 }
 
@@ -58,16 +53,14 @@ pub enum SyntacticPrimary {
     // By definition, we have no idea how to parse special sequences.
     // just pass the string to the user.
     Special(String),
-    MetaIdentifier(MetaIdentifier),
+    MetaIdentifier(String),
     TerminalString(String),
 }
 
 impl EBNFParser {
-    pub fn parse_meta_identifier(pair: Pair<Rule>) -> Option<MetaIdentifier> {
+    pub fn parse_meta_identifier(pair: Pair<Rule>) -> Option<String> {
         match pair.as_rule() {
-            Rule::meta_identifier => Some(MetaIdentifier {
-                value: String::from(pair.as_str()),
-            }),
+            Rule::meta_identifier => Some(pair.as_str().to_string()),
             _ => None,
         }
     }
@@ -313,9 +306,7 @@ mod tests {
         if let Some(pair) = EBNFParser::parse(Rule::meta_identifier, r#"letter"#)?.next() {
             assert_eq!(
                 EBNFParser::parse_meta_identifier(pair),
-                Some(MetaIdentifier {
-                    value: "letter".to_string()
-                })
+                Some("letter".to_string())
             );
         };
 
@@ -416,9 +407,7 @@ mod tests {
             assert_eq!(
                 EBNFParser::parse_syntax_rule(pair),
                 Some(SyntaxRule {
-                    identifier: MetaIdentifier {
-                        value: "letter".to_string()
-                    },
+                    identifier: "letter".to_string(),
                     definitions: EBNFParser::parse_definition_list(
                         EBNFParser::parse(Rule::definition_list, r#""a" | "b""#)?
                             .next()
@@ -440,9 +429,7 @@ mod tests {
                 EBNFParser::parse_syntax(pair),
                 Some(Syntax {
                     rules: vec![SyntaxRule {
-                        identifier: MetaIdentifier {
-                            value: "letter".to_string()
-                        },
+                        identifier: "letter".to_string(),
                         definitions: EBNFParser::parse_definition_list(
                             EBNFParser::parse(Rule::definition_list, r#""a" | "b""#)?
                                 .next()
