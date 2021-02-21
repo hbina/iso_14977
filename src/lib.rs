@@ -78,7 +78,7 @@ impl EBNFParser {
             rules: pair
                 // TODO: We should really check that EOI only exists in the beginning.
                 .filter(|rule| rule.as_rule() != Rule::EOI)
-                .map(|rule| EBNFParser::parse_syntax_rule(rule))
+                .map(EBNFParser::parse_syntax_rule)
                 .collect::<Option<Vec<SyntaxRule>>>()?,
         })
     }
@@ -132,7 +132,7 @@ impl EBNFParser {
         Some(DefinitionList {
             list: pair
                 .step_by(2)
-                .map(|definition_list| EBNFParser::parse_single_definition(definition_list))
+                .map(EBNFParser::parse_single_definition)
                 .collect::<Option<Vec<SingleDefinition>>>()?,
         })
     }
@@ -142,7 +142,7 @@ impl EBNFParser {
         Some(SingleDefinition {
             terms: pair
                 .step_by(2)
-                .map(|syntactic_term| EBNFParser::parse_syntactic_term(syntactic_term))
+                .map(EBNFParser::parse_syntactic_term)
                 .collect::<Option<Vec<SyntacticTerm>>>()?,
         })
     }
