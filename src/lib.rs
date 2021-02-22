@@ -50,6 +50,7 @@ pub enum SyntacticPrimary {
     Special(String),
     MetaIdentifier(String),
     TerminalString(String),
+    Empty,
 }
 
 fn extract_content(pair: Pair<Rule>) -> String {
@@ -242,6 +243,7 @@ impl EBNFParser {
             }
             Rule::terminal_string => SyntacticPrimary::TerminalString(extract_content(pair)),
             Rule::special_sequence => SyntacticPrimary::Special(extract_content(pair)),
+            Rule::empty_sequence => SyntacticPrimary::Empty,
             _ => panic!(
                 r#"
             parse_syntactic_primary is unable to match any of the expected enum.
