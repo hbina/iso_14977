@@ -62,195 +62,144 @@ fn extract_content(pair: Pair<Rule>) -> String {
 }
 
 impl EBNFParser {
-    pub fn parse_meta_identifier(pair: Pair<Rule>) -> Option<String> {
-        match pair.as_rule() {
-            Rule::meta_identifier => Some(pair.as_str().to_string()),
-            _ => None,
-        }
+    pub fn parse_meta_identifier(pair: Pair<Rule>) -> String {
+        assert_eq!(pair.as_rule(), Rule::meta_identifier);
+        pair.as_str().to_string()
     }
 
-    pub fn parse_syntax(pair: Pair<Rule>) -> Option<Syntax> {
-        let pair = pair.into_inner();
-        Some(Syntax {
+    pub fn parse_syntax(pair: Pair<Rule>) -> Syntax {
+        assert_eq!(pair.as_rule(), Rule::syntax);
+
+        Syntax {
             rules: pair
-                // TODO: We should really check that EOI only exists in the beginning.
-                .filter(|rule| rule.as_rule() != Rule::EOI)
+                .into_inner()
+                .filter(|p| p.as_rule() != Rule::EOI)
                 .map(EBNFParser::parse_syntax_rule)
-                .collect::<Option<Vec<SyntaxRule>>>()?,
-        })
-    }
-
-    pub fn parse_syntax_rule(pair: Pair<Rule>) -> Option<SyntaxRule> {
-        let mut pair = pair.into_inner();
-        if pair.clone().map(|p| p.as_rule()).collect::<Vec<_>>()
-            == vec![
-                Rule::meta_identifier,
-                Rule::defining_symbol,
-                Rule::definition_list,
-                Rule::terminator_symbol,
-            ]
-        {
-            let meta_identifier = pair.next().unwrap();
-            let _defining_symbol = pair.next().unwrap();
-            let definition_list = pair.next().unwrap();
-
-            Some(SyntaxRule {
-                identifier: EBNFParser::parse_meta_identifier(meta_identifier)?,
-                definitions: EBNFParser::parse_definition_list(definition_list)?,
-            })
-        } else {
-            None
+                .collect::<Vec<SyntaxRule>>(),
         }
     }
 
-    pub fn parse_definition_list(pair: Pair<Rule>) -> Option<DefinitionList> {
-        let pair = pair.into_inner();
-        Some(DefinitionList {
+    pub fn parse_syntax_rule(pair: Pair<Rule>) -> SyntaxRule {
+        assert_eq!(pair.as_rule(), Rule::syntax_rule);
+
+        let mut pairs = pair.into_inner();
+
+        let meta_identifier = pairs.next().unwrap();
+        let _defining_symbol = pairs.next();
+        let definition_list = pairs.next().unwrap();
+        let _terminator_symbol = pairs.next();
+
+        SyntaxRule {
+            identifier: EBNFParser::parse_meta_identifier(meta_identifier),
+            definitions: EBNFParser::parse_definition_list(definition_list),
+        }
+    }
+
+    pub fn parse_definition_list(pair: Pair<Rule>) -> DefinitionList {
+        assert_eq!(pair.as_rule(), Rule::definition_list);
+
+        DefinitionList {
             list: pair
+                .into_inner()
                 // skipping over definition_separator_symbol's
                 .step_by(2)
                 .map(EBNFParser::parse_single_definition)
-                .collect::<Option<Vec<SingleDefinition>>>()?,
-        })
+                .collect::<Vec<SingleDefinition>>(),
+        }
     }
 
-    pub fn parse_single_definition(pair: Pair<Rule>) -> Option<SingleDefinition> {
-        let pair = pair.into_inner();
-        Some(SingleDefinition {
+    pub fn parse_single_definition(pair: Pair<Rule>) -> SingleDefinition {
+        assert_eq!(pair.as_rule(), Rule::single_definition);
+
+        SingleDefinition {
             terms: pair
+                .into_inner()
                 // skipping over concatenate_symbol's
                 .step_by(2)
                 .map(EBNFParser::parse_syntactic_term)
-                .collect::<Option<Vec<SyntacticTerm>>>()?,
-        })
+                .collect::<Vec<SyntacticTerm>>(),
+        }
     }
 
-    pub fn parse_syntactic_exception(pair: Pair<Rule>) -> Option<SyntacticFactor> {
+    pub fn parse_syntactic_exception(pair: Pair<Rule>) -> SyntacticFactor {
+        assert_eq!(pair.as_rule(), Rule::syntactic_exception);
+
         let pair = pair.into_inner().next().unwrap();
-        let factor = Self::parse_syntactic_factor(pair)?;
+        let factor = Self::parse_syntactic_factor(pair);
         // FIXME: check restriction from § 4.7:
         // factor must be non-recursive
-        Some(factor)
+        factor
     }
 
-    pub fn parse_syntactic_term(pair: Pair<Rule>) -> Option<SyntacticTerm> {
-        let mut pair = pair.into_inner();
+    pub fn parse_syntactic_term(pair: Pair<Rule>) -> SyntacticTerm {
+        assert_eq!(pair.as_rule(), Rule::syntactic_term);
 
-        let factor;
-        let mut except = None;
+        let mut pairs = pair.into_inner();
+        let factor = EBNFParser::parse_syntactic_factor(pairs.next().unwrap());
 
-        let rules = pair.clone().map(|p| p.as_rule()).collect::<Vec<_>>();
-        if rules
-            == vec![
-                Rule::syntactic_factor,
-                Rule::except_symbol,
-                Rule::syntactic_exception,
-            ]
-        {
-            let syntactic_factor = pair.next().unwrap();
-            let _except_symbol = pair.next().unwrap();
-            let syntactic_exception = pair.next().unwrap();
+        let _except_symbol = pairs.next();
+        let except = pairs.next().map(EBNFParser::parse_syntactic_exception);
 
-            factor = EBNFParser::parse_syntactic_factor(syntactic_factor)?;
-            // NOTE: If we are this far, failure to obtain a syntactic_exception is not equivalent to it not existing.
-            except = Some(EBNFParser::parse_syntactic_exception(syntactic_exception)?)
-        } else if rules == vec![Rule::syntactic_factor] {
-            factor = EBNFParser::parse_syntactic_factor(pair.next().unwrap())?;
+        SyntacticTerm { factor, except }
+    }
+
+    pub fn parse_syntactic_factor(pair: Pair<Rule>) -> SyntacticFactor {
+        assert_eq!(pair.as_rule(), Rule::syntactic_factor);
+
+        let mut pairs = pair.into_inner().peekable();
+
+        let repetition = if pairs.peek().unwrap().as_rule() == Rule::integer {
+            let temp = pairs
+                .next()
+                .unwrap()
+                .as_str()
+                .parse::<usize>()
+                .expect("Unable to parse integer required for syntactic_factor.");
+            // still have to skip over the repetition symbol
+            let _repetition_symbol = pairs.next();
+            temp
         } else {
-            return None;
-        }
-
-        Some(SyntacticTerm { factor, except })
-    }
-
-    pub fn parse_syntactic_factor(pair: Pair<Rule>) -> Option<SyntacticFactor> {
-        let mut pair = pair.into_inner();
-
-        let rules = pair.clone().map(|p| p.as_rule()).collect::<Vec<_>>();
-
-        let mut repetition = 1;
-
-        match rules.as_slice() {
-            [Rule::integer, Rule::repetition_symbol, Rule::syntactic_primary] => {
-                repetition = pair
-                    .next()
-                    .unwrap()
-                    .as_str()
-                    .parse::<usize>()
-                    .expect("Unable to parse integer required for syntactic_factor.");
-                let _repetition_symbol = pair.next();
-            }
-            [Rule::syntactic_primary] => {}
-            _ => return None,
+            1
         };
 
-        let primary = EBNFParser::parse_syntactic_primary(pair.next().unwrap()).unwrap();
+        let primary = EBNFParser::parse_syntactic_primary(pairs.next().unwrap());
 
-        Some(SyntacticFactor {
+        SyntacticFactor {
             repetition,
             primary,
-        })
-    }
-
-    fn parse_definition_list_in_sequence(
-        pair: Pairs<Rule>,
-        sequence_begin_symbol: Rule,
-        sequence_end_symbol: Rule,
-    ) -> Option<DefinitionList> {
-        if pair.clone().map(|p| p.as_rule()).collect::<Vec<_>>()
-            == vec![
-                sequence_begin_symbol,
-                Rule::definition_list,
-                sequence_end_symbol,
-            ]
-        {
-            let definition_list = pair.skip(1).next().unwrap();
-            Some(EBNFParser::parse_definition_list(definition_list)?)
-        } else {
-            None
         }
     }
 
-    pub fn parse_syntactic_primary(pair: Pair<Rule>) -> Option<SyntacticPrimary> {
-        let pair = pair.into_inner().next()?;
-        Some(match pair.as_rule() {
-            Rule::optional_sequence => {
-                let pair = pair.into_inner();
-                SyntacticPrimary::Optional(EBNFParser::parse_definition_list_in_sequence(
-                    pair,
-                    Rule::start_option_symbol,
-                    Rule::end_option_symbol,
-                )?)
-            }
-            Rule::repeated_sequence => {
-                let pair = pair.into_inner();
-                SyntacticPrimary::Repeated(EBNFParser::parse_definition_list_in_sequence(
-                    pair,
-                    Rule::start_repeat_symbol,
-                    Rule::end_repeat_symbol,
-                )?)
-            }
-            Rule::grouped_sequence => {
-                let pair = pair.into_inner();
-                SyntacticPrimary::Grouped(EBNFParser::parse_definition_list_in_sequence(
-                    pair,
-                    Rule::start_group_symbol,
-                    Rule::end_group_symbol,
-                )?)
-            }
+    fn parse_definition_list_in_sequence(pair: Pairs<Rule>) -> DefinitionList {
+        let definition_list = pair.skip(1).next().unwrap();
+        assert_eq!(definition_list.as_rule(), Rule::definition_list);
+
+        EBNFParser::parse_definition_list(definition_list)
+    }
+
+    pub fn parse_syntactic_primary(pair: Pair<Rule>) -> SyntacticPrimary {
+        assert_eq!(pair.as_rule(), Rule::syntactic_primary);
+
+        let pair = pair.into_inner().next().unwrap();
+
+        match pair.as_rule() {
+            Rule::optional_sequence => SyntacticPrimary::Optional(
+                EBNFParser::parse_definition_list_in_sequence(pair.into_inner()),
+            ),
+            Rule::repeated_sequence => SyntacticPrimary::Repeated(
+                EBNFParser::parse_definition_list_in_sequence(pair.into_inner()),
+            ),
+            Rule::grouped_sequence => SyntacticPrimary::Grouped(
+                EBNFParser::parse_definition_list_in_sequence(pair.into_inner()),
+            ),
             Rule::meta_identifier => {
-                SyntacticPrimary::MetaIdentifier(EBNFParser::parse_meta_identifier(pair)?)
+                SyntacticPrimary::MetaIdentifier(EBNFParser::parse_meta_identifier(pair))
             }
             Rule::terminal_string => SyntacticPrimary::TerminalString(extract_content(pair)),
             Rule::special_sequence => SyntacticPrimary::Special(extract_content(pair)),
             Rule::empty_sequence => SyntacticPrimary::Empty,
-            _ => panic!(
-                r#"
-            parse_syntactic_primary is unable to match any of the expected enum.
-            Instead, we got {:#?}"#,
-                pair
-            ),
-        })
+            _ => unreachable!("{:#?}", pair),
+        }
     }
 }
 
@@ -261,41 +210,68 @@ mod tests {
     use pest::Parser;
 
     #[test]
-    fn parse_meta_identifier() -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(pair) = EBNFParser::parse(Rule::meta_identifier, r#"letter"#)?.next() {
-            assert_eq!(
-                EBNFParser::parse_meta_identifier(pair),
-                Some("letter".to_string())
-            );
-        };
-
-        Ok(())
+    fn parse_meta_identifier() {
+        assert_eq!(
+            EBNFParser::parse(Rule::meta_identifier, r#"letter"#)
+                .unwrap()
+                .next()
+                .map(EBNFParser::parse_meta_identifier)
+                .unwrap(),
+            "letter".to_string()
+        );
     }
 
     #[test]
-    fn parse_symbols() -> Result<(), Box<dyn std::error::Error>> {
-        EBNFParser::parse(Rule::defining_symbol, "=")?;
-        EBNFParser::parse(Rule::definition_separator_symbol, "|")?;
-        EBNFParser::parse(Rule::first_quote_symbol, "'")?;
-        EBNFParser::parse(Rule::second_quote_symbol, r#"""#)?;
-        EBNFParser::parse(Rule::repetition_symbol, "*")?;
-        Ok(())
+    fn parse_symbols() {
+        assert!(EBNFParser::parse(Rule::defining_symbol, "=").is_ok());
+        assert!(EBNFParser::parse(Rule::definition_separator_symbol, "|").is_ok());
+        assert!(EBNFParser::parse(Rule::first_quote_symbol, "'").is_ok());
+        assert!(EBNFParser::parse(Rule::second_quote_symbol, r#"""#).is_ok());
+        assert!(EBNFParser::parse(Rule::repetition_symbol, "*").is_ok());
     }
 
     #[test]
-    fn parse_terminal_string() -> Result<(), Box<dyn std::error::Error>> {
-        EBNFParser::parse(Rule::terminal_string, r#""b \r a \n d""#)?;
-        EBNFParser::parse(Rule::terminal_string, "'a'")?;
-        Ok(())
+    fn parse_terminal_string() {
+        assert!(EBNFParser::parse(Rule::terminal_string, r#""b \r a \n d""#).is_ok());
+        assert!(EBNFParser::parse(Rule::terminal_string, "'a'").is_ok());
     }
 
     #[test]
-    fn parse_syntactic_factor() -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(pair) = EBNFParser::parse(Rule::syntactic_factor, r#"5 * {"abcde"}"#)?.next() {
-            assert_eq!(
-                EBNFParser::parse_syntactic_factor(pair),
-                Some(SyntacticFactor {
-                    repetition: 5,
+    fn parse_syntactic_factor() {
+        assert_eq!(
+            EBNFParser::parse(Rule::syntactic_factor, r#"5 * {"abcde"}"#)
+                .unwrap()
+                .next()
+                .map(EBNFParser::parse_syntactic_factor)
+                .unwrap(),
+            SyntacticFactor {
+                repetition: 5,
+                primary: SyntacticPrimary::Repeated(DefinitionList {
+                    list: vec![SingleDefinition {
+                        terms: vec![SyntacticTerm {
+                            factor: SyntacticFactor {
+                                repetition: 1,
+                                primary: SyntacticPrimary::TerminalString("abcde".to_string())
+                            },
+                            except: None
+                        }]
+                    }]
+                })
+            }
+        );
+    }
+
+    #[test]
+    fn parse_syntactic_term() {
+        assert_eq!(
+            EBNFParser::parse(Rule::syntactic_term, r#"{"abcde"} - "xyz""#)
+                .unwrap()
+                .next()
+                .map(EBNFParser::parse_syntactic_term)
+                .unwrap(),
+            SyntacticTerm {
+                factor: SyntacticFactor {
+                    repetition: 1,
                     primary: SyntacticPrimary::Repeated(DefinitionList {
                         list: vec![SingleDefinition {
                             terms: vec![SyntacticTerm {
@@ -307,172 +283,1458 @@ mod tests {
                             }]
                         }]
                     })
+                },
+                except: Some(SyntacticFactor {
+                    repetition: 1,
+                    primary: SyntacticPrimary::TerminalString("xyz".to_string()),
                 })
-            )
-        }
-        Ok(())
+            }
+        );
     }
 
     #[test]
-    fn parse_syntactic_term() -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(pair) = EBNFParser::parse(Rule::syntactic_term, r#"{"abcde"} - "xyz""#)?.next()
-        {
-            assert_eq!(
-                EBNFParser::parse_syntactic_term(pair),
-                Some(SyntacticTerm {
-                    factor: SyntacticFactor {
-                        repetition: 1,
-                        primary: SyntacticPrimary::Repeated(DefinitionList {
+    fn parse_definition_list() {
+        assert_eq!(
+            EBNFParser::parse(
+                Rule::definition_list,
+                r#"(5 * {"abcde"} - "xyz") | "fghi", "ghi";"#
+            )
+            .unwrap()
+            .next()
+            .map(EBNFParser::parse_definition_list)
+            .unwrap(),
+            DefinitionList {
+                list: vec![
+                    SingleDefinition {
+                        terms: vec![SyntacticTerm {
+                            factor: SyntacticFactor {
+                                repetition: 1,
+                                primary: SyntacticPrimary::Grouped(DefinitionList {
+                                    list: vec![SingleDefinition {
+                                        terms: vec![SyntacticTerm {
+                                            factor: SyntacticFactor {
+                                                repetition: 5,
+                                                primary: SyntacticPrimary::Repeated(DefinitionList {
+                                                    list: vec![SingleDefinition {
+                                                        terms: vec![SyntacticTerm {
+                                                            factor: SyntacticFactor {
+                                                                repetition: 1,
+                                                                primary:
+                                                                    SyntacticPrimary::TerminalString(
+                                                                        "abcde".to_string()
+                                                                    ),
+                                                            },
+                                                            except: None,
+                                                        },],
+                                                    },],
+                                                }),
+                                            },
+                                            except: Some(SyntacticFactor {
+                                                repetition: 1,
+                                                primary: SyntacticPrimary::TerminalString("xyz".to_string()),
+                                            })
+                                        }]
+                                    }]
+                                })
+                            },
+                            except: None,
+                        }]
+                    },
+                    SingleDefinition {
+                        terms: vec![
+                            SyntacticTerm {
+                                factor: SyntacticFactor {
+                                    repetition: 1,
+                                    primary: SyntacticPrimary::TerminalString("fghi".to_string()),
+                                },
+                                except: None,
+                            },
+                            SyntacticTerm {
+                                factor: SyntacticFactor {
+                                    repetition: 1,
+                                    primary: SyntacticPrimary::TerminalString("ghi".to_string()),
+                                },
+                                except: None,
+                            },
+                        ],
+                    },
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn parse_syntax_rule() {
+        assert_eq!(
+            EBNFParser::parse(Rule::syntax_rule, r#"letter = "a" | "b";"#)
+                .unwrap()
+                .next()
+                .map(EBNFParser::parse_syntax_rule)
+                .unwrap(),
+            SyntaxRule {
+                identifier: "letter".to_string(),
+                definitions: DefinitionList {
+                    list: vec![
+                        SingleDefinition {
+                            terms: vec![SyntacticTerm {
+                                factor: SyntacticFactor {
+                                    repetition: 1,
+                                    primary: SyntacticPrimary::TerminalString("a".to_string())
+                                },
+                                except: None
+                            }]
+                        },
+                        SingleDefinition {
+                            terms: vec![SyntacticTerm {
+                                factor: SyntacticFactor {
+                                    repetition: 1,
+                                    primary: SyntacticPrimary::TerminalString("b".to_string())
+                                },
+                                except: None
+                            }]
+                        }
+                    ]
+                }
+            }
+        );
+        assert_eq!(
+            EBNFParser::parse(
+                Rule::syntax,
+                r#"(* comment *) letter (* comment *)
+= (* comment *) "a" (* comment *) | (* comment *) "b" (* comment *) ;"#
+            )
+            .unwrap()
+            .next()
+            .map(EBNFParser::parse_syntax)
+            .unwrap(),
+            Syntax {
+                rules: vec![SyntaxRule {
+                    identifier: "letter".to_string(),
+                    definitions: DefinitionList {
+                        list: vec![
+                            SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("a".to_string())
+                                    },
+                                    except: None
+                                }]
+                            },
+                            SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("b".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }
+                        ]
+                    }
+                }]
+            }
+        );
+    }
+
+    #[test]
+    fn parse_ebnf_itself() {
+        assert_eq!(
+            EBNFParser::parse(
+                Rule::syntax,
+                r#"(*
+The syntax of Extended BNF can be defined using
+itself. There are four parts in this example,
+the first part names the characters, the second
+part defines the removal of unnecessary nonprinting characters, the third part defines the
+removal of textual comments, and the final part
+defines the structure of Extended BNF itself.
+Each syntax rule in this example starts with a
+comment that identifies the corresponding clause
+in the standard.
+The meaning of special-sequences is not defined
+in the standard. In this example (see the
+reference to 7.6) they represent control
+functions defined by ISO/IEC 6429:1992.
+Another special-sequence defines a
+syntactic-exception (see the reference to 4.7).
+*)
+(*
+The first part of the lexical syntax defines the
+characters in the 7-bit character set (ISO/IEC
+646:1991) that represent each terminal-character
+and gap-separator in Extended BNF.
+*)
+(* see 7.2 *)
+letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h'
+| 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p'
+| 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x'
+| 'y' | 'z'
+| 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
+| 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
+| 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
+| 'Y' | 'Z';
+(* see 7.2 *) decimal_digit
+= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
+| '8' | '9';
+(*
+The representation of the following
+terminal-characters is defined in clauses 7.3,
+7.4 and tables 1, 2.
+*)
+concatenate_symbol = ',';
+defining_symbol = '=';
+definition_separator_symbol = '|' | '//' | '!';
+end_comment_symbol = '*)';
+end_group_symbol = ')';
+end_option_symbol = ']' | '/)';
+end_repeat_symbol = '}' | ':)';
+except_symbol = '-';
+first_quote_symbol = "'";
+repetition_symbol = '*';
+second_quote_symbol = '"';
+special_sequence_symbol = '?';
+start_comment_symbol = '(*';
+start_group_symbol = '(';
+start_option_symbol = '[' | '(//';
+start_repeat_symbol = '{' | '(:';
+terminator_symbol = ';' | '.';
+(* see 7.5 *) other_character
+= ' ' | ':' | '+' | '_' | '%' | '@'
+| '&' | '#' | '$' | '<' | '>' | '\'
+| 'ˆ' | '‘' | '~';
+(* see 7.6 *) space_character = ' ';
+"#,
+            )
+            .unwrap()
+            .next()
+            .map(EBNFParser::parse_syntax)
+            .unwrap(),
+            Syntax {
+                rules: vec![
+                    SyntaxRule {
+                        identifier: "letter".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "a".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "b".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "c".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "d".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "e".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "f".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "g".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "h".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "i".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "j".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "k".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "l".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "m".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "n".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "o".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "p".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "q".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "r".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "s".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "t".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "u".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "v".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "w".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "x".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "y".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "z".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "A".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "B".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "C".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "D".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "E".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "F".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "G".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "H".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "I".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "J".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "K".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "L".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "M".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "N".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "O".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "P".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "Q".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "R".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "S".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "T".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "U".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "V".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "W".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "X".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "Y".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "Z".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                }
+                            ]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "decimal_digit".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "0".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "1".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "2".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "3".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "4".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "5".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "6".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "7".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "8".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "9".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                }
+                            ]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "concatenate_symbol".to_string(),
+                        definitions: DefinitionList {
                             list: vec![SingleDefinition {
                                 terms: vec![SyntacticTerm {
                                     factor: SyntacticFactor {
                                         repetition: 1,
-                                        primary: SyntacticPrimary::TerminalString(
-                                            "abcde".to_string()
-                                        )
+                                        primary: SyntacticPrimary::TerminalString(",".to_string())
                                     },
                                     except: None
                                 }]
                             }]
-                        })
+                        }
                     },
-                    except: Some(SyntacticFactor {
-                        repetition: 1,
-                        primary: SyntacticPrimary::TerminalString("xyz".to_string()),
-                    })
-                })
-            )
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn parse_definition_list() -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(pair) = EBNFParser::parse(
-            Rule::definition_list,
-            r#"(5 * {"abcde"} - "xyz") | "fghi", "ghi";"#,
-        )?
-        .next()
-        {
-            EBNFParser::parse_definition_list(pair);
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn parse_syntax_rule() -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(pair) = EBNFParser::parse(Rule::syntax_rule, r#"letter = "a" | "b";"#)?.next() {
-            assert_eq!(
-                EBNFParser::parse_syntax_rule(pair),
-                Some(SyntaxRule {
-                    identifier: "letter".to_string(),
-                    definitions: EBNFParser::parse_definition_list(
-                        EBNFParser::parse(Rule::definition_list, r#""a" | "b""#)?
-                            .next()
-                            .unwrap()
-                    )
-                    .unwrap()
-                })
-            );
-        }
-        if let Some(pair) = EBNFParser::parse(
-            Rule::syntax,
-            r#"
-        (* comment *) letter (* comment *)
-        = (* comment *) "a" (* comment *) | (* comment *) "b" (* comment *) ;"#,
-        )?
-        .next()
-        {
-            assert_eq!(
-                EBNFParser::parse_syntax(pair),
-                Some(Syntax {
-                    rules: vec![SyntaxRule {
-                        identifier: "letter".to_string(),
-                        definitions: EBNFParser::parse_definition_list(
-                            EBNFParser::parse(Rule::definition_list, r#""a" | "b""#)?
-                                .next()
-                                .unwrap()
-                        )
-                        .unwrap()
-                    }]
-                })
-            );
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn parse_ebnf_itself() -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(_) =  EBNFParser::parse(
-            Rule::syntax,
-            r#"
-            (*
-            The syntax of Extended BNF can be defined using
-            itself. There are four parts in this example,
-            the first part names the characters, the second
-            part defines the removal of unnecessary nonprinting characters, the third part defines the
-            removal of textual comments, and the final part
-            defines the structure of Extended BNF itself.
-            Each syntax rule in this example starts with a
-            comment that identifies the corresponding clause
-            in the standard.
-            The meaning of special-sequences is not defined
-            in the standard. In this example (see the
-            reference to 7.6) they represent control
-            functions defined by ISO/IEC 6429:1992.
-            Another special-sequence defines a
-            syntactic-exception (see the reference to 4.7).
-            *)
-            (*
-            The first part of the lexical syntax defines the
-            characters in the 7-bit character set (ISO/IEC
-            646:1991) that represent each terminal-character
-            and gap-separator in Extended BNF.
-            *)
-            (* see 7.2 *) 
-            letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h'
-            | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p'
-            | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x'
-            | 'y' | 'z'
-            | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
-            | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
-            | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
-            | 'Y' | 'Z';
-            (* see 7.2 *) decimal_digit
-            = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
-            | '8' | '9';
-            (*
-            The representation of the following
-            terminal-characters is defined in clauses 7.3,
-            7.4 and tables 1, 2.
-            *)
-            concatenate_symbol = ',';
-            defining_symbol = '=';
-            definition_separator_symbol = '|' | '//' | '!';
-            end_comment_symbol = '*)';
-            end_group_symbol = ')';
-            end_option_symbol = ']' | '/)';
-            end_repeat_symbol = '}' | ':)';
-            except_symbol = '-';
-            first_quote_symbol = "'";
-            repetition_symbol = '*';
-            second_quote_symbol = '"';
-            special_sequence_symbol = '?';
-            start_comment_symbol = '(*';
-            start_group_symbol = '(';
-            start_option_symbol = '[' | '(//';
-            start_repeat_symbol = '{' | '(:';
-            terminator_symbol = ';' | '.';
-            (* see 7.5 *) other_character
-            = ' ' | ':' | '+' | '_' | '%' | '@'
-            | '&' | '#' | '$' | '<' | '>' | '\'
-            | 'ˆ' | '‘' | '˜';
-            (* see 7.6 *) space_character = ' ';
-            "#,
-        )?.next() {
-            // TODO: Complete this :)
-            // assert_eq!(EBNFParser::parse_syntax(pair), None);
-        }
-        Ok(())
+                    SyntaxRule {
+                        identifier: "defining_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("=".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "definition_separator_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "|".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "//".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "!".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                }
+                            ]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "end_comment_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("*)".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "end_group_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString(")".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "end_option_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "]".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "/)".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                }
+                            ]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "end_repeat_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "}".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                ":)".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                }
+                            ]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "except_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("-".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "first_quote_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("\'".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "repetition_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("*".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "second_quote_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("\"".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "special_sequence_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("?".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "start_comment_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("(*".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "start_group_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString("(".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "start_option_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "[".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "(//".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                }
+                            ]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "start_repeat_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "{".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "(:".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                }
+                            ]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "terminator_symbol".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                ";".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                ".".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                }
+                            ]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "other_character".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                " ".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                ":".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "+".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "_".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "%".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "@".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "&".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "#".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "$".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "<".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                ">".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "\\".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "ˆ".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "‘".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                },
+                                SingleDefinition {
+                                    terms: vec![SyntacticTerm {
+                                        factor: SyntacticFactor {
+                                            repetition: 1,
+                                            primary: SyntacticPrimary::TerminalString(
+                                                "~".to_string()
+                                            )
+                                        },
+                                        except: None
+                                    }]
+                                }
+                            ]
+                        }
+                    },
+                    SyntaxRule {
+                        identifier: "space_character".to_string(),
+                        definitions: DefinitionList {
+                            list: vec![SingleDefinition {
+                                terms: vec![SyntacticTerm {
+                                    factor: SyntacticFactor {
+                                        repetition: 1,
+                                        primary: SyntacticPrimary::TerminalString(" ".to_string())
+                                    },
+                                    except: None
+                                }]
+                            }]
+                        }
+                    }
+                ]
+            },
+        );
     }
 }
