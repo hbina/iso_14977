@@ -171,7 +171,7 @@ impl EBNFParser {
     }
 
     fn parse_definition_list_in_sequence(pair: Pairs<Rule>) -> DefinitionList {
-        let definition_list = pair.skip(1).next().unwrap();
+        let definition_list = pair.nth(1).unwrap();
         assert_eq!(definition_list.as_rule(), Rule::definition_list);
 
         EBNFParser::parse_definition_list(definition_list)
