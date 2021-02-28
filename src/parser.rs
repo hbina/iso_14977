@@ -560,71 +560,74 @@ fn parse_syntax_rule() {
 
 #[test]
 fn parse_ebnf_itself() {
-    let _=  InnerParser::parse(
-            Rule::syntax,
-            r#"
-            (*
-            The syntax of Extended BNF can be defined using
-            itself. There are four parts in this example,
-            the first part names the characters, the second
-            part defines the removal of unnecessary nonprinting characters, the third part defines the
-            removal of textual comments, and the final part
-            defines the structure of Extended BNF itself.
-            Each syntax rule in this example starts with a
-            comment that identifies the corresponding clause
-            in the standard.
-            The meaning of special-sequences is not defined
-            in the standard. In this example (see the
-            reference to 7.6) they represent control
-            functions defined by ISO/IEC 6429:1992.
-            Another special-sequence defines a
-            syntactic-exception (see the reference to 4.7).
-            *)
-            (*
-            The first part of the lexical syntax defines the
-            characters in the 7-bit character set (ISO/IEC
-            646:1991) that represent each terminal-character
-            and gap-separator in Extended BNF.
-            *)
-            (* see 7.2 *) 
-            letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | ’h’
-            | ’i’ | ’j’ | ’k’ | ’l’ | ’m’ | ’n’ | ’o’ | ’p’
-            | ’q’ | ’r’ | ’s’ | ’t’ | ’u’ | ’v’ | ’w’ | ’x’
-            | ’y’ | ’z’
-            | ’A’ | ’B’ | ’C’ | ’D’ | ’E’ | ’F’ | ’G’ | ’H’
-            | ’I’ | ’J’ | ’K’ | ’L’ | ’M’ | ’N’ | ’O’ | ’P’
-            | ’Q’ | ’R’ | ’S’ | ’T’ | ’U’ | ’V’ | ’W’ | ’X’
-            | ’Y’ | ’Z’;
-            (* see 7.2 *) decimal_digit
-            = ’0’ | ’1’ | ’2’ | ’3’ | ’4’ | ’5’ | ’6’ | ’7’
-            | ’8’ | ’9’;
-            (*
-            The representation of the following
-            terminal-characters is defined in clauses 7.3,
-            7.4 and tables 1, 2.
-            *)
-            concatenate_symbol = ',';
-            defining_symbol = '=';
-            definition_separator_symbol = '|' | '//' | '!';
-            end_comment_symbol = '*)';
-            end_group_symbol = ')';
-            end_option_symbol = ']' | '/)';
-            end_repeat_symbol = '}' | ':)';
-            except_symbol = '-';
-            first_quote_symbol = "'";
-            repetition_symbol = '*';
-            second_quote_symbol = '"';
-            special_sequence_symbol = '.unwrap()';
-            start_comment_symbol = '(*';
-            start_group_symbol = '(';
-            start_option_symbol = '[' | '(//';
-            start_repeat_symbol = '{' | '(:';
-            terminator_symbol = ';' | '.';
-            (* see 7.5 *) other_character
-            = ' ' | ':' | '+' | '_' | '%' | '@'
-            | '&' | '#' | '$' | '<' | '>' | '\'
-            | ’ˆ’ | ’‘’ | ’˜’;
-            (* see 7.6 *) space_character = ' ';                
-            "#,
-        ).unwrap().next().unwrap();
+    let _ = InnerParser::parse(
+        Rule::syntax,
+        r##"
+(*
+The syntax of Extended BNF can be defined using
+itself. There are four parts in this example,
+the first part names the characters, the second
+part defines the removal of unnecessary nonprinting characters, the third part defines the
+removal of textual comments, and the final part
+defines the structure of Extended BNF itself.
+Each syntax rule in this example starts with a
+comment that identifies the corresponding clause
+in the standard.
+The meaning of special-sequences is not defined
+in the standard. In this example (see the
+reference to 7.6) they represent control
+functions defined by ISO/IEC 6429:1992.
+Another special-sequence defines a
+syntactic-exception (see the reference to 4.7).
+*)
+(*
+The first part of the lexical syntax defines the
+characters in the 7-bit character set (ISO/IEC
+646:1991) that represent each terminal-character
+and gap-separator in Extended BNF.
+*)
+(* see 7.2 *)
+letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h'
+| 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p'
+| 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x'
+| 'y' | 'z'
+| 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
+| 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
+| 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
+| 'Y' | 'Z';
+(* see 7.2 *) decimal_digit
+= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
+| '8' | '9';
+(*
+The representation of the following
+terminal-characters is defined in clauses 7.3,
+7.4 and tables 1, 2.
+*)
+concatenate_symbol = ',';
+defining_symbol = '=';
+definition_separator_symbol = '|' | '//' | '!';
+end_comment_symbol = '*)';
+end_group_symbol = ')';
+end_option_symbol = ']' | '/)';
+end_repeat_symbol = '}' | ':)';
+except_symbol = '-';
+first_quote_symbol = "'";
+repetition_symbol = '*';
+second_quote_symbol = '"';
+special_sequence_symbol = '?';
+start_comment_symbol = '(*';
+start_group_symbol = '(';
+start_option_symbol = '[' | '(//';
+start_repeat_symbol = '{' | '(:';
+terminator_symbol = ';' | '.';
+(* see 7.5 *) other_character
+= ' ' | ':' | '+' | '_' | '%' | '@'
+| '&' | '#' | '$' | '<' | '>' | '\'
+| 'ˆ' | '‘' | '~';
+(* see 7.6 *) space_character = ' ';
+                "##,
+    )
+    .unwrap()
+    .next()
+    .unwrap();
 }

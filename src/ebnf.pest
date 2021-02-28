@@ -40,7 +40,7 @@ end_repeat_symbol = {
     | ":)"
 }
 except_symbol = { "-" }
-first_quote_symbol = { "'" | "’" }
+first_quote_symbol = { "'" }
 repetition_symbol = { "*" }
 second_quote_symbol = { "\"" }
 special_sequence_symbol = { "?" }
