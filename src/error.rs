@@ -1,9 +1,9 @@
-use crate::parser::Rrule;
+use crate::parser::Rule;
 
 #[derive(Debug)]
 pub enum EBNFError {
-    UnexpectedRules(Vec<(Rrule, String)>),
-    InsufficientTokens(Vec<Option<Rrule>>),
+    UnexpectedRules(Vec<(Rule, String)>),
+    InsufficientTokens(Vec<Option<Rule>>),
     NoTokens,
     Pest(Box<dyn std::error::Error>),
 }
@@ -26,7 +26,7 @@ macro_rules! impl_error {
     };
 }
 
-impl_error!(pest::error::Error<Rrule>);
+impl_error!(pest::error::Error<Rule>);
 impl_error!(std::num::ParseIntError);
 
 pub type EBNFResult<T> = std::result::Result<T, EBNFError>;

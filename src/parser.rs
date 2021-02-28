@@ -12,8 +12,6 @@ trait FromRule: Sized {
 #[grammar = "./ebnf.pest"]
 pub struct InnerParser;
 
-pub type Rrule = Rule;
-
 impl InnerParser {
     pub fn new(raw: &str) -> EBNFResult<Syntax> {
         let pair = InnerParser::parse(Rule::syntax, raw)?.next().unwrap();
