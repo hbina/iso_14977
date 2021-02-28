@@ -1,12 +1,18 @@
-use std::{convert::TryFrom, hash::Hash};
-
+use crate::error::{EBNFError, EBNFResult};
 use pest::iterators::{Pair, Pairs};
 #[allow(unused_imports)]
 use pest::Parser;
+use std::{convert::TryFrom, hash::Hash};
+
+trait FromRule: Sized {
+    fn try_from(pair: Pair<Rule>) -> EBNFResult<Self>;
+}
 
 #[derive(Parser)]
 #[grammar = "./ebnf.pest"]
 pub struct InnerParser;
+
+pub type Rrule = Rule;
 
 impl InnerParser {
     pub fn new(raw: &str) -> EBNFResult<Syntax> {
@@ -16,58 +22,40 @@ impl InnerParser {
     }
 }
 
-#[derive(Debug)]
-pub enum ParseError {
-    UnexpectedRules(Vec<(Rule, String)>),
-    InsufficientTokens(Vec<Option<Rule>>),
-    InvalidSequenceSymbol((Rule, String), (Rule, String), (Rule, String)),
-    Pest(Box<dyn std::error::Error>),
-}
-
-impl std::error::Error for ParseError {}
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#?}", self)
-    }
-}
-
-impl std::convert::From<pest::error::Error<Rule>> for ParseError {
-    fn from(error: pest::error::Error<Rule>) -> Self {
-        ParseError::Pest(Box::new(error))
-    }
-}
-
-impl std::convert::From<std::num::ParseIntError> for ParseError {
-    fn from(error: std::num::ParseIntError) -> Self {
-        ParseError::Pest(Box::new(error))
-    }
-}
-
-pub type EBNFResult<T> = std::result::Result<T, ParseError>;
-
-trait FromRule: Sized {
-    fn try_from(pair: Pair<Rule>) -> EBNFResult<Self>;
-}
-
 #[derive(Debug, Eq, PartialEq)]
 pub struct Syntax {
-    rules: std::collections::HashMap<String, DefinitionList>,
+    rules: Vec<SyntaxRule>,
 }
 
-impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for Syntax {
-    type Error = ParseError;
+macro_rules! impl_form_str {
+    ($ty:ty, $val:expr) => {
+        impl std::str::FromStr for $ty {
+            type Err = EBNFError;
+
+            fn from_str(raw: &str) -> Result<Self, Self::Err> {
+                if let Some(pair) = InnerParser::parse(Rule::syntax, raw)?.next() {
+                    let syntax = Self::try_from(pair)?;
+                    Ok(syntax)
+                } else {
+                    Err(EBNFError::NoTokens)
+                }
+            }
+        }
+    };
+}
+
+impl_form_str!(Syntax, Rule::syntax);
+
+impl<'r> TryFrom<Pair<'r, Rule>> for Syntax {
+    type Error = EBNFError;
     fn try_from(pair: Pair<'r, Rule>) -> EBNFResult<Syntax> {
-        let pair = pair.into_inner();
+        let inner = pair.into_inner();
         let result = Syntax {
-            rules: pair
+            rules: inner
                 // TODO: We should really check that EOI only exists in the beginning.
                 .filter(|rule| rule.as_rule() != Rule::EOI)
                 .map(|rule| SyntaxRule::try_from(rule))
-                .collect::<EBNFResult<Vec<SyntaxRule>>>()?
-                .into_iter()
-                .map(|r| (r.identifier.0, r.definitions))
-                .collect(),
+                .collect::<EBNFResult<Vec<SyntaxRule>>>()?,
         };
         Ok(result)
     }
@@ -76,12 +64,14 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for Syntax {
 #[derive(Debug, Eq, PartialEq)]
 pub struct MetaIdentifier(String);
 
-impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for MetaIdentifier {
-    type Error = ParseError;
+impl_form_str!(MetaIdentifier, Rule::meta_identifier);
+
+impl<'r> TryFrom<Pair<'r, Rule>> for MetaIdentifier {
+    type Error = EBNFError;
     fn try_from(pair: Pair<Rule>) -> EBNFResult<MetaIdentifier> {
         match pair.as_rule() {
             Rule::meta_identifier => Ok(MetaIdentifier(String::from(pair.as_str()))),
-            o => Err(ParseError::UnexpectedRules(vec![(
+            o => Err(EBNFError::UnexpectedRules(vec![(
                 o,
                 pair.as_str().to_string(),
             )])),
@@ -95,8 +85,10 @@ pub struct SyntaxRule {
     definitions: DefinitionList,
 }
 
-impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntaxRule {
-    type Error = ParseError;
+impl_form_str!(SyntaxRule, Rule::syntax_rule);
+
+impl<'r> TryFrom<Pair<'r, Rule>> for SyntaxRule {
+    type Error = EBNFError;
     fn try_from(pair: Pair<Rule>) -> EBNFResult<SyntaxRule> {
         let mut pair = pair.into_inner();
         match (pair.next(), pair.next(), pair.next(), pair.next()) {
@@ -120,14 +112,14 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntaxRule {
                     identifier: MetaIdentifier::try_from(meta_identifier)?,
                     definitions: DefinitionList::try_from(definition_list)?,
                 }),
-                (a, b, c, d) => Err(ParseError::UnexpectedRules(vec![
+                (a, b, c, d) => Err(EBNFError::UnexpectedRules(vec![
                     (a, meta_identifier.as_str().to_string()),
                     (b, defining_symbol.as_str().to_string()),
                     (c, definition_list.as_str().to_string()),
                     (d, terminator_symbol.as_str().to_string()),
                 ])),
             },
-            (a, b, c, d) => Err(ParseError::InsufficientTokens(vec![
+            (a, b, c, d) => Err(EBNFError::InsufficientTokens(vec![
                 a.map(|p| p.as_rule()),
                 b.map(|p| p.as_rule()),
                 c.map(|p| p.as_rule()),
@@ -140,8 +132,10 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntaxRule {
 #[derive(Debug, Eq, PartialEq)]
 pub struct DefinitionList(Vec<SingleDefinition>);
 
-impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for DefinitionList {
-    type Error = ParseError;
+impl_form_str!(DefinitionList, Rule::definition_list);
+
+impl<'r> TryFrom<Pair<'r, Rule>> for DefinitionList {
+    type Error = EBNFError;
     fn try_from(pair: Pair<Rule>) -> EBNFResult<DefinitionList> {
         let pair = pair.into_inner();
         Ok(DefinitionList(
@@ -155,8 +149,10 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for DefinitionList {
 #[derive(Debug, Eq, PartialEq)]
 pub struct SingleDefinition(Vec<SyntacticTerm>);
 
-impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SingleDefinition {
-    type Error = ParseError;
+impl_form_str!(SingleDefinition, Rule::single_definition);
+
+impl<'r> TryFrom<Pair<'r, Rule>> for SingleDefinition {
+    type Error = EBNFError;
     fn try_from(pair: Pair<Rule>) -> EBNFResult<SingleDefinition> {
         let pair = pair.into_inner();
         Ok(SingleDefinition(
@@ -170,8 +166,10 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SingleDefinition {
 #[derive(Debug, Eq, PartialEq)]
 pub struct SyntacticException(String);
 
-impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticException {
-    type Error = ParseError;
+impl_form_str!(SyntacticException, Rule::syntactic_expression);
+
+impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticException {
+    type Error = EBNFError;
     fn try_from(pair: Pair<Rule>) -> EBNFResult<SyntacticException> {
         let pair = pair.into_inner();
         Ok(SyntacticException(String::from(pair.as_str())))
@@ -184,8 +182,10 @@ pub struct SyntacticTerm {
     except: Option<SyntacticException>,
 }
 
-impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticTerm {
-    type Error = ParseError;
+impl_form_str!(SyntacticTerm, Rule::syntactic_term);
+
+impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticTerm {
+    type Error = EBNFError;
     fn try_from(pair: Pair<Rule>) -> EBNFResult<SyntacticTerm> {
         let mut pair = pair.into_inner();
         match (pair.next(), pair.next(), pair.next()) {
@@ -201,7 +201,7 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticTerm {
                         except: SyntacticException::try_from(syntactic_exception).ok(),
                     })
                 }
-                (a, b, c) => Err(ParseError::UnexpectedRules(vec![
+                (a, b, c) => Err(EBNFError::UnexpectedRules(vec![
                     (a, syntactic_factor.as_str().to_string()),
                     (b, except_symbol.as_str().to_string()),
                     (c, syntactic_exception.as_str().to_string()),
@@ -211,7 +211,7 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticTerm {
                 factor: SyntacticFactor::try_from(syntactic_factor)?,
                 except: None,
             }),
-            (a, b, c) => Err(ParseError::InsufficientTokens(vec![
+            (a, b, c) => Err(EBNFError::InsufficientTokens(vec![
                 a.map(|p| p.as_rule()),
                 b.map(|p| p.as_rule()),
                 c.map(|p| p.as_rule()),
@@ -226,8 +226,10 @@ pub struct SyntacticFactor {
     primary: SyntacticPrimary,
 }
 
-impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticFactor {
-    type Error = ParseError;
+impl_form_str!(SyntacticFactor, Rule::syntactic_factor);
+
+impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticFactor {
+    type Error = EBNFError;
     fn try_from(pair: Pair<Rule>) -> EBNFResult<SyntacticFactor> {
         let mut pair = pair.into_inner();
         match (pair.next(), pair.next(), pair.next()) {
@@ -242,7 +244,7 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticFactor {
                         primary: SyntacticPrimary::try_from(syntactic_primary)?,
                     })
                 }
-                (a, b, c) => Err(ParseError::UnexpectedRules(vec![
+                (a, b, c) => Err(EBNFError::UnexpectedRules(vec![
                     (a, integer.as_str().to_string()),
                     (b, repetition_symbol.as_str().to_string()),
                     (c, syntactic_primary.as_str().to_string()),
@@ -253,12 +255,12 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticFactor {
                     repetition: 1,
                     primary: SyntacticPrimary::try_from(syntactic_primary)?,
                 }),
-                o => Err(ParseError::UnexpectedRules(vec![(
+                o => Err(EBNFError::UnexpectedRules(vec![(
                     o,
                     syntactic_primary.as_str().to_string(),
                 )])),
             },
-            (a, b, c) => Err(ParseError::InsufficientTokens(vec![
+            (a, b, c) => Err(EBNFError::InsufficientTokens(vec![
                 a.map(|p| p.as_rule()),
                 b.map(|p| p.as_rule()),
                 c.map(|p| p.as_rule()),
@@ -275,9 +277,11 @@ pub enum SyntacticPrimary {
     // By definition, we have no idea how to parse special sequences.
     // just pass the string to the user.
     Special(String),
-    MetaIdentifier(MetaIdentifier),
+    MetaIdentifier(String),
     TerminalString(String),
 }
+
+impl_form_str!(SyntacticPrimary, Rule::syntactic_primary);
 
 impl SyntacticPrimary {
     fn parse_definition_list_in_sequence(
@@ -298,21 +302,21 @@ impl SyntacticPrimary {
                         {
                             Ok(DefinitionList::try_from(definition_list)?)
                         } else {
-                            Err(ParseError::InvalidSequenceSymbol(
+                            Err(EBNFError::UnexpectedRules(vec![
                                 (begin_symbol, start_repeat_symbol.as_str().to_string()),
                                 (Rule::definition_list, definition_list.as_str().to_string()),
                                 (end_symbol, end_repeat_symbol.as_str().to_string()),
-                            ))
+                            ]))
                         }
                     }
-                    (a, b, c) => Err(ParseError::UnexpectedRules(vec![
+                    (a, b, c) => Err(EBNFError::UnexpectedRules(vec![
                         (a, start_repeat_symbol.as_str().to_string()),
                         (b, definition_list.as_str().to_string()),
                         (c, end_repeat_symbol.as_str().to_string()),
                     ])),
                 }
             }
-            (a, b, c) => Err(ParseError::InsufficientTokens(vec![
+            (a, b, c) => Err(EBNFError::InsufficientTokens(vec![
                 a.map(|p| p.as_rule()),
                 b.map(|p| p.as_rule()),
                 c.map(|p| p.as_rule()),
@@ -321,8 +325,8 @@ impl SyntacticPrimary {
     }
 }
 
-impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticPrimary {
-    type Error = ParseError;
+impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticPrimary {
+    type Error = EBNFError;
     fn try_from(pair: Pair<Rule>) -> EBNFResult<SyntacticPrimary> {
         let mut pair = pair.into_inner();
         match pair.next() {
@@ -358,7 +362,7 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticPrimary {
                     ))
                 }
                 Rule::meta_identifier => Ok(SyntacticPrimary::MetaIdentifier(
-                    MetaIdentifier::try_from(pair)?,
+                    MetaIdentifier::try_from(pair)?.0,
                 )),
                 Rule::terminal_string => Ok(SyntacticPrimary::TerminalString(String::from(
                     pair.as_str(),
@@ -366,12 +370,12 @@ impl<'r> std::convert::TryFrom<Pair<'r, Rule>> for SyntacticPrimary {
                 Rule::special_sequence => {
                     Ok(SyntacticPrimary::Special(String::from(pair.as_str())))
                 }
-                o => Err(ParseError::UnexpectedRules(vec![(
+                o => Err(EBNFError::UnexpectedRules(vec![(
                     o,
                     pair.as_str().to_string(),
                 )])),
             },
-            None => Err(ParseError::InsufficientTokens(vec![])),
+            None => Err(EBNFError::NoTokens),
         }
     }
 }
@@ -392,7 +396,7 @@ fn parse_meta_identifier() {
 fn parse_symbols() {
     InnerParser::parse(Rule::defining_symbol, r#"="#).unwrap();
     InnerParser::parse(Rule::definition_separator_symbol, r#"|"#).unwrap();
-    InnerParser::parse(Rule::first_quote_symbol, r#"’"#).unwrap();
+    InnerParser::parse(Rule::first_quote_symbol, r#"'"#).unwrap();
     InnerParser::parse(Rule::second_quote_symbol, r#"""#).unwrap();
     InnerParser::parse(Rule::repetition_symbol, r#"*"#).unwrap();
 }
@@ -400,7 +404,7 @@ fn parse_symbols() {
 #[test]
 fn parse_terminal_string() {
     InnerParser::parse(Rule::terminal_string, r#""b \r a \n d""#).unwrap();
-    InnerParser::parse(Rule::terminal_string, r#"’a’"#).unwrap();
+    InnerParser::parse(Rule::terminal_string, r#"'a'"#).unwrap();
 }
 
 #[test]
@@ -540,20 +544,16 @@ fn parse_syntax_rule() {
     assert_eq!(
         Syntax::try_from(pair).unwrap(),
         Syntax {
-            rules: {
-                let mut dd = std::collections::HashMap::new();
-                dd.insert(
-                    "letter".to_string(),
-                    DefinitionList::try_from(
-                        InnerParser::parse(Rule::definition_list, r#""a" | "b""#)
-                            .unwrap()
-                            .next()
-                            .unwrap(),
-                    )
-                    .unwrap(),
-                );
-                dd
-            }
+            rules: vec![SyntaxRule {
+                identifier: MetaIdentifier("letter".to_string()),
+                definitions: DefinitionList::try_from(
+                    InnerParser::parse(Rule::definition_list, r#""a" | "b""#)
+                        .unwrap()
+                        .next()
+                        .unwrap()
+                )
+                .unwrap()
+            }]
         }
     );
 }
@@ -587,7 +587,7 @@ fn parse_ebnf_itself() {
             and gap-separator in Extended BNF.
             *)
             (* see 7.2 *) 
-            letter = ’a’ | ’b’ | ’c’ | ’d’ | ’e’ | ’f’ | ’g’ | ’h’
+            letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | ’h’
             | ’i’ | ’j’ | ’k’ | ’l’ | ’m’ | ’n’ | ’o’ | ’p’
             | ’q’ | ’r’ | ’s’ | ’t’ | ’u’ | ’v’ | ’w’ | ’x’
             | ’y’ | ’z’
@@ -603,28 +603,28 @@ fn parse_ebnf_itself() {
             terminal-characters is defined in clauses 7.3,
             7.4 and tables 1, 2.
             *)
-            concatenate_symbol = ’,’;
-            defining_symbol = ’=’;
-            definition_separator_symbol = ’|’ | ’//’ | ’!’;
-            end_comment_symbol = ’*)’;
-            end_group_symbol = ’)’;
-            end_option_symbol = ’]’ | ’/)’;
-            end_repeat_symbol = ’}’ | ’:)’;
-            except_symbol = ’-’;
-            first_quote_symbol = "’";
-            repetition_symbol = ’*’;
-            second_quote_symbol = ’"’;
-            special_sequence_symbol = ’.unwrap()’;
-            start_comment_symbol = ’(*’;
-            start_group_symbol = ’(’;
-            start_option_symbol = ’[’ | ’(//’;
-            start_repeat_symbol = ’{’ | ’(:’;
-            terminator_symbol = ’;’ | ’.’;
+            concatenate_symbol = ',';
+            defining_symbol = '=';
+            definition_separator_symbol = '|' | '//' | '!';
+            end_comment_symbol = '*)';
+            end_group_symbol = ')';
+            end_option_symbol = ']' | '/)';
+            end_repeat_symbol = '}' | ':)';
+            except_symbol = '-';
+            first_quote_symbol = "'";
+            repetition_symbol = '*';
+            second_quote_symbol = '"';
+            special_sequence_symbol = '.unwrap()';
+            start_comment_symbol = '(*';
+            start_group_symbol = '(';
+            start_option_symbol = '[' | '(//';
+            start_repeat_symbol = '{' | '(:';
+            terminator_symbol = ';' | '.';
             (* see 7.5 *) other_character
-            = ’ ’ | ’:’ | ’+’ | ’_’ | ’%’ | ’@’
-            | ’&’ | ’#’ | ’$’ | ’<’ | ’>’ | ’\’
+            = ' ' | ':' | '+' | '_' | '%' | '@'
+            | '&' | '#' | '$' | '<' | '>' | '\'
             | ’ˆ’ | ’‘’ | ’˜’;
-            (* see 7.6 *) space_character = ’ ’;                
+            (* see 7.6 *) space_character = ' ';                
             "#,
         ).unwrap().next().unwrap();
 }
