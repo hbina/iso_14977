@@ -224,7 +224,8 @@ impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticFactor {
             ) {
                 (Rule::integer, Rule::repetition_symbol, Rule::syntactic_primary) => {
                     Ok(SyntacticFactor {
-                        repetition: integer.as_str().parse::<usize>()?,
+                        // can unwrap here because the grammar already ensures this is a number
+                        repetition: integer.as_str().parse::<usize>().unwrap(),
                         primary: SyntacticPrimary::try_from(syntactic_primary)?,
                     })
                 }

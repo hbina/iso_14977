@@ -21,17 +21,10 @@ impl Display for EBNFError {
     }
 }
 
-macro_rules! impl_error {
-    ($ty:ty) => {
-        impl From<$ty> for EBNFError {
-            fn from(error: $ty) -> Self {
-                EBNFError::Pest(Box::new(error))
-            }
-        }
-    };
+impl From<pest::error::Error<Rule>> for EBNFError {
+    fn from(error: pest::error::Error<Rule>) -> Self {
+        EBNFError::Pest(Box::new(error))
+    }
 }
-
-impl_error!(pest::error::Error<Rule>);
-impl_error!(std::num::ParseIntError);
 
 pub type EBNFResult<T> = Result<T, EBNFError>;
