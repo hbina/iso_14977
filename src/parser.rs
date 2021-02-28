@@ -5,15 +5,7 @@ use std::{convert::TryFrom, hash::Hash};
 
 #[derive(Parser)]
 #[grammar = "./ebnf.pest"]
-pub struct InnerParser;
-
-impl InnerParser {
-    pub fn new(raw: &str) -> EBNFResult<Syntax> {
-        let pair = InnerParser::parse(Rule::syntax, raw)?.next().unwrap();
-        let syntax = Syntax::try_from(pair)?;
-        Ok(syntax)
-    }
-}
+pub(crate) struct InnerParser;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Syntax {
@@ -47,7 +39,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for Syntax {
             rules: inner
                 // TODO: We should really check that EOI only exists in the beginning.
                 .filter(|rule| rule.as_rule() != Rule::EOI)
-                .map(|rule| SyntaxRule::try_from(rule))
+                .map(SyntaxRule::try_from)
                 .collect::<EBNFResult<Vec<SyntaxRule>>>()?,
         };
         Ok(result)
@@ -133,7 +125,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for DefinitionList {
         let pair = pair.into_inner();
         Ok(DefinitionList(
             pair.step_by(2)
-                .map(|definition_list| SingleDefinition::try_from(definition_list))
+                .map(SingleDefinition::try_from)
                 .collect::<EBNFResult<Vec<SingleDefinition>>>()?,
         ))
     }
@@ -150,7 +142,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for SingleDefinition {
         let pair = pair.into_inner();
         Ok(SingleDefinition(
             pair.step_by(2)
-                .map(|syntactic_term| SyntacticTerm::try_from(syntactic_term))
+                .map(SyntacticTerm::try_from)
                 .collect::<EBNFResult<Vec<SyntacticTerm>>>()?,
         ))
     }

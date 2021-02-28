@@ -11,5 +11,5 @@ pub use parser::{
 };
 
 pub fn parse(raw: &str) -> error::EBNFResult<parser::Syntax> {
-    parser::InnerParser::new(raw)
+    raw.parse::<Syntax>()
 }
