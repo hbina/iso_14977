@@ -18,9 +18,8 @@ macro_rules! impl_from_str {
             type Err = EBNFError;
 
             fn from_str(raw: &str) -> Result<Self, Self::Err> {
-                if let Some(pair) = InnerParser::parse(Rule::syntax, raw)?.next() {
-                    let syntax = Self::try_from(pair)?;
-                    Ok(syntax)
+                if let Some(pair) = InnerParser::parse($val, raw)?.next() {
+                    Self::try_from(pair)
                 } else {
                     Err(EBNFError::NoTokens)
                 }
@@ -151,7 +150,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for SingleDefinition {
 #[derive(Debug, Eq, PartialEq)]
 pub struct SyntacticException(String);
 
-impl_from_str!(SyntacticException, Rule::syntactic_expression);
+impl_from_str!(SyntacticException, Rule::syntactic_exception);
 
 impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticException {
     type Error = EBNFError;
