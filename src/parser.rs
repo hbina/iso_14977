@@ -5,7 +5,7 @@ use std::{convert::TryFrom, hash::Hash};
 
 #[derive(Parser)]
 #[grammar = "./ebnf.pest"]
-pub(crate) struct InnerParser;
+struct InnerParser;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Syntax {
