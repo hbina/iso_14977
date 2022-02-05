@@ -1,41 +1,25 @@
 use crate::error::{EBNFError, EBNFResult};
 use pest::iterators::{Pair, Pairs};
-#[allow(unused_imports)]
 use pest::Parser;
 use std::{convert::TryFrom, hash::Hash};
 
-trait FromRule: Sized {
-    fn try_from(pair: Pair<Rule>) -> EBNFResult<Self>;
-}
-
 #[derive(Parser)]
 #[grammar = "./ebnf.pest"]
-pub struct InnerParser;
-
-pub type Rrule = Rule;
-
-impl InnerParser {
-    pub fn new(raw: &str) -> EBNFResult<Syntax> {
-        let pair = InnerParser::parse(Rule::syntax, raw)?.next().unwrap();
-        let syntax = Syntax::try_from(pair)?;
-        Ok(syntax)
-    }
-}
+struct InnerParser;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Syntax {
     rules: Vec<SyntaxRule>,
 }
 
-macro_rules! impl_form_str {
+macro_rules! impl_from_str {
     ($ty:ty, $val:expr) => {
         impl std::str::FromStr for $ty {
             type Err = EBNFError;
 
             fn from_str(raw: &str) -> Result<Self, Self::Err> {
-                if let Some(pair) = InnerParser::parse(Rule::syntax, raw)?.next() {
-                    let syntax = Self::try_from(pair)?;
-                    Ok(syntax)
+                if let Some(pair) = InnerParser::parse($val, raw)?.next() {
+                    Self::try_from(pair)
                 } else {
                     Err(EBNFError::NoTokens)
                 }
@@ -44,7 +28,7 @@ macro_rules! impl_form_str {
     };
 }
 
-impl_form_str!(Syntax, Rule::syntax);
+impl_from_str!(Syntax, Rule::syntax);
 
 impl<'r> TryFrom<Pair<'r, Rule>> for Syntax {
     type Error = EBNFError;
@@ -54,7 +38,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for Syntax {
             rules: inner
                 // TODO: We should really check that EOI only exists in the beginning.
                 .filter(|rule| rule.as_rule() != Rule::EOI)
-                .map(|rule| SyntaxRule::try_from(rule))
+                .map(SyntaxRule::try_from)
                 .collect::<EBNFResult<Vec<SyntaxRule>>>()?,
         };
         Ok(result)
@@ -64,7 +48,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for Syntax {
 #[derive(Debug, Eq, PartialEq)]
 pub struct MetaIdentifier(String);
 
-impl_form_str!(MetaIdentifier, Rule::meta_identifier);
+impl_from_str!(MetaIdentifier, Rule::meta_identifier);
 
 impl<'r> TryFrom<Pair<'r, Rule>> for MetaIdentifier {
     type Error = EBNFError;
@@ -85,7 +69,7 @@ pub struct SyntaxRule {
     definitions: DefinitionList,
 }
 
-impl_form_str!(SyntaxRule, Rule::syntax_rule);
+impl_from_str!(SyntaxRule, Rule::syntax_rule);
 
 impl<'r> TryFrom<Pair<'r, Rule>> for SyntaxRule {
     type Error = EBNFError;
@@ -132,7 +116,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for SyntaxRule {
 #[derive(Debug, Eq, PartialEq)]
 pub struct DefinitionList(Vec<SingleDefinition>);
 
-impl_form_str!(DefinitionList, Rule::definition_list);
+impl_from_str!(DefinitionList, Rule::definition_list);
 
 impl<'r> TryFrom<Pair<'r, Rule>> for DefinitionList {
     type Error = EBNFError;
@@ -140,7 +124,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for DefinitionList {
         let pair = pair.into_inner();
         Ok(DefinitionList(
             pair.step_by(2)
-                .map(|definition_list| SingleDefinition::try_from(definition_list))
+                .map(SingleDefinition::try_from)
                 .collect::<EBNFResult<Vec<SingleDefinition>>>()?,
         ))
     }
@@ -149,7 +133,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for DefinitionList {
 #[derive(Debug, Eq, PartialEq)]
 pub struct SingleDefinition(Vec<SyntacticTerm>);
 
-impl_form_str!(SingleDefinition, Rule::single_definition);
+impl_from_str!(SingleDefinition, Rule::single_definition);
 
 impl<'r> TryFrom<Pair<'r, Rule>> for SingleDefinition {
     type Error = EBNFError;
@@ -157,7 +141,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for SingleDefinition {
         let pair = pair.into_inner();
         Ok(SingleDefinition(
             pair.step_by(2)
-                .map(|syntactic_term| SyntacticTerm::try_from(syntactic_term))
+                .map(SyntacticTerm::try_from)
                 .collect::<EBNFResult<Vec<SyntacticTerm>>>()?,
         ))
     }
@@ -166,7 +150,7 @@ impl<'r> TryFrom<Pair<'r, Rule>> for SingleDefinition {
 #[derive(Debug, Eq, PartialEq)]
 pub struct SyntacticException(String);
 
-impl_form_str!(SyntacticException, Rule::syntactic_expression);
+impl_from_str!(SyntacticException, Rule::syntactic_exception);
 
 impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticException {
     type Error = EBNFError;
@@ -182,7 +166,7 @@ pub struct SyntacticTerm {
     except: Option<SyntacticException>,
 }
 
-impl_form_str!(SyntacticTerm, Rule::syntactic_term);
+impl_from_str!(SyntacticTerm, Rule::syntactic_term);
 
 impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticTerm {
     type Error = EBNFError;
@@ -226,7 +210,7 @@ pub struct SyntacticFactor {
     primary: SyntacticPrimary,
 }
 
-impl_form_str!(SyntacticFactor, Rule::syntactic_factor);
+impl_from_str!(SyntacticFactor, Rule::syntactic_factor);
 
 impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticFactor {
     type Error = EBNFError;
@@ -240,7 +224,8 @@ impl<'r> TryFrom<Pair<'r, Rule>> for SyntacticFactor {
             ) {
                 (Rule::integer, Rule::repetition_symbol, Rule::syntactic_primary) => {
                     Ok(SyntacticFactor {
-                        repetition: integer.as_str().parse::<usize>()?,
+                        // can unwrap here because the grammar already ensures this is a number
+                        repetition: integer.as_str().parse::<usize>().unwrap(),
                         primary: SyntacticPrimary::try_from(syntactic_primary)?,
                     })
                 }
@@ -281,7 +266,7 @@ pub enum SyntacticPrimary {
     TerminalString(String),
 }
 
-impl_form_str!(SyntacticPrimary, Rule::syntactic_primary);
+impl_from_str!(SyntacticPrimary, Rule::syntactic_primary);
 
 impl SyntacticPrimary {
     fn parse_definition_list_in_sequence(
