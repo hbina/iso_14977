@@ -102,16 +102,17 @@ ebnf_characters_functions!(
         is_other_character
     ))
 );
-fn is_gap_free_symbol(input: &str) -> NomResult<&str, String> {
+ebnf_characters_functions!(
+    is_gap_free_symbol,
+    String,
     alt((
         verify(is_terminal_character, |o: &str| {
             alt((is_first_quote_symbol, is_second_quote_symbol))(o).is_err()
         })
         .map(|d| format!("{}", d)),
         is_terminal_string,
-    ))(input)
-}
-
+    ))
+);
 ebnf_characters_functions!(
     is_terminal_string,
     String,
@@ -131,7 +132,6 @@ ebnf_characters_functions!(
     ))
     .map(|(a, b, c, d)| format!("{}{}{}{}", a, b, c.join(""), d)),))
 );
-
 ebnf_characters_functions!(
     is_first_terminal_character,
     &str,
@@ -207,24 +207,33 @@ ebnf_characters_functions!(
     ))
 );
 
-fn is_integer(input: &str) -> NomResult<&str, String> {
-    tuple((is_decimal_digit, many0(is_decimal_digit)))
-        .map(|(a, b)| format!("{}{}", a, b.join("")))
-        .parse(input)
-}
-
-fn is_meta_identifier(input: &str) -> NomResult<&str, String> {
-    tuple((is_letter, many0(is_meta_identifier_character)))
-        .map(|(a, b)| format!("{}{}", a, b.join("")))
-        .parse(input)
-}
-
+ebnf_characters_functions!(
+    is_integer,
+    String,
+    alt((
+        tuple((is_decimal_digit, many0(is_decimal_digit))).map(|(a, b)| format!(
+            "{}{}",
+            a,
+            b.join("")
+        )),
+    ))
+);
+ebnf_characters_functions!(
+    is_meta_identifier,
+    String,
+    alt((
+        tuple((is_letter, many0(is_meta_identifier_character))).map(|(a, b)| format!(
+            "{}{}",
+            a,
+            b.join("")
+        )),
+    ))
+);
 ebnf_characters_functions!(
     is_meta_identifier_character,
     &str,
     alt((is_letter, is_decimal_digit))
 );
-
 ebnf_characters_functions!(
     is_special_sequence,
     String,
@@ -235,7 +244,6 @@ ebnf_characters_functions!(
     ))
     .map(|(a, b, c)| format!("{}{}{}", a, b.join(""), c)),))
 );
-
 ebnf_characters_functions!(
     is_special_sequence_character,
     &str,
