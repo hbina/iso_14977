@@ -9,7 +9,7 @@ use nom::{
     IResult as NomResult, Parser,
 };
 
-use crate::{EBNFError, EBNFResult};
+use crate::{EbnfError, EbnfResult};
 
 macro_rules! ebnf_rules {
     ($func_name:ident, $out:ty, $pattern:expr) => {
@@ -529,18 +529,18 @@ ebnf_rules!(
 
 // Export a convenient function
 #[allow(dead_code)]
-pub fn parse_ebnf(input: &str, strict_mode: bool) -> EBNFResult<EbnfSyntax> {
+pub fn parse_ebnf(input: &str, strict_mode: bool) -> EbnfResult<EbnfSyntax> {
     let (leftover_1, printable_syntax) = is_printable_syntax(input)?;
     if !leftover_1.is_empty() && strict_mode {
-        return Err(EBNFError::ExtraToken(leftover_1.to_string()));
+        return Err(EbnfError::ExtraToken(leftover_1.to_string()));
     }
     let (leftover_2, commentless_syntax) = is_commentless_syntax(&printable_syntax)?;
     if !leftover_2.is_empty() && strict_mode {
-        return Err(EBNFError::ExtraToken(leftover_2.to_string()));
+        return Err(EbnfError::ExtraToken(leftover_2.to_string()));
     }
     let (leftover_3, ebnf_syntax) = is_ebnf_syntax(&commentless_syntax)?;
     if !leftover_3.is_empty() && strict_mode {
-        return Err(EBNFError::ExtraToken(leftover_3.to_string()));
+        return Err(EbnfError::ExtraToken(leftover_3.to_string()));
     }
     Ok(ebnf_syntax)
 }
