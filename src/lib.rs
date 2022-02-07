@@ -1,5 +1,6 @@
 mod error;
 mod parser;
+mod solver;
 
 pub use error::{EbnfError, EbnfResult};
 pub use parser::{
@@ -8,3 +9,4 @@ pub use parser::{
     DefinitionList, EbnfSyntax, SingleDefinition, SyntacticFactor, SyntacticPrimary, SyntacticTerm,
     SyntaxRule,
 };
+pub use solver::EbnfSolver;
