@@ -1,3 +1,4 @@
+use nom::multi::many_m_n;
 #[allow(dead_code)]
 use nom::{
     branch::alt,
@@ -40,7 +41,11 @@ ebnf_rules!(
 ebnf_rules!(is_decimal_digit, &str, recognize(one_of("0123456789")));
 ebnf_rules!(is_concatenate_symbol, &str, tag(","));
 ebnf_rules!(is_defining_symbol, &str, tag("="));
-ebnf_rules!(is_definition_separator, &str, recognize(one_of("|/!")));
+ebnf_rules!(
+    is_definition_separator_symbol,
+    &str,
+    recognize(one_of("|/!"))
+);
 ebnf_rules!(is_end_comment_symbol, &str, tag("*)"));
 ebnf_rules!(is_end_group_symbol, &str, tag(")"));
 ebnf_rules!(is_end_option_symbol, &str, tag("]"), tag("/)"));
@@ -85,7 +90,7 @@ ebnf_rules!(
         is_decimal_digit,
         is_concatenate_symbol,
         is_defining_symbol,
-        is_definition_separator,
+        is_definition_separator_symbol,
         is_end_comment_symbol,
         is_end_group_symbol,
         is_end_option_symbol,
@@ -288,6 +293,142 @@ ebnf_rules!(
     }),))
 );
 
+// The final part of the syntax defines the abstract syntax of Extended BNF, i.e. the
+// structure in terms of the commentless symbols.
+
+ebnf_rules!(
+    is_ebnf_syntax,
+    String,
+    alt((
+        tuple((is_syntax_rule, many0(is_syntax_rule))).map(|(a, b)| format!("{}{}", a, b.join(""))),
+    ))
+);
+ebnf_rules!(
+    is_syntax_rule,
+    String,
+    alt((tuple((
+        is_meta_identifier,
+        is_defining_symbol,
+        is_definition_list,
+        is_terminator_symbol
+    ))
+    .map(|(a, b, c, d)| format!("{}{}{}{}", a, b, c, d)),))
+);
+ebnf_rules!(
+    is_definition_list,
+    String,
+    alt((tuple((
+        is_single_definition,
+        many0(tuple((
+            is_definition_separator_symbol,
+            is_single_definition
+        )))
+    ))
+    .map(|(a, b)| format!(
+        "{}{}",
+        a,
+        b.iter()
+            .map(|(c, d)| format!("{}{}", c, d))
+            .collect::<String>()
+    )),))
+);
+ebnf_rules!(
+    is_single_definition,
+    String,
+    alt((tuple((
+        is_syntactic_term,
+        many0(tuple((is_concatenate_symbol, is_syntactic_term)))
+    ))
+    .map(|(a, b)| format!(
+        "{}{}",
+        a,
+        b.iter()
+            .map(|(c, d)| format!("{}{}", c, d))
+            .collect::<String>()
+    )),))
+);
+ebnf_rules!(
+    is_syntactic_term,
+    String,
+    alt((tuple((
+        is_syntactic_factor,
+        many_m_n(0, 1, tuple((is_except_symbol, is_syntax_exception)))
+    ))
+    .map(|(a, b)| format!(
+        "{}{}",
+        a,
+        b.iter()
+            .map(|(c, d)| format!("{}{}", c, d))
+            .collect::<String>()
+    )),))
+);
+// FIXME: Currentely unused
+ebnf_rules!(is_syntax_exception, String, is_syntactic_factor);
+ebnf_rules!(
+    is_syntactic_factor,
+    String,
+    alt((tuple((
+        many_m_n(0, 1, tuple((is_integer, is_repetition_symbol))),
+        is_syntactic_primary
+    ))
+    .map(|(a, b)| format!(
+        "{}{}",
+        a.iter()
+            .map(|(c, d)| format!("{}{}", c, d))
+            .collect::<String>(),
+        b
+    )),))
+);
+ebnf_rules!(
+    is_syntactic_primary,
+    String,
+    // NOTE: Use many_m_n to encode empty sequence
+    alt((many_m_n(
+        0,
+        1,
+        alt((
+            is_optional_sequence,
+            is_repeated_sequence,
+            is_grouped_sequence,
+            is_meta_identifier,
+            is_terminal_string,
+            is_special_sequence,
+            // is_empty_sequence
+        ))
+    )
+    .map(|a| a.join("")),))
+);
+ebnf_rules!(
+    is_optional_sequence,
+    String,
+    alt((tuple((
+        is_start_option_symbol,
+        is_definition_list,
+        is_end_option_symbol
+    ))
+    .map(|(a, b, c)| format!("{}{}{}", a, b, c)),))
+);
+ebnf_rules!(
+    is_repeated_sequence,
+    String,
+    alt((tuple((
+        is_start_repeat_symbol,
+        is_definition_list,
+        is_end_repeat_symbol
+    ))
+    .map(|(a, b, c)| format!("{}{}{}", a, b, c)),))
+);
+ebnf_rules!(
+    is_grouped_sequence,
+    String,
+    alt((tuple((
+        is_start_group_symbol,
+        is_definition_list,
+        is_end_group_symbol
+    ))
+    .map(|(a, b, c)| format!("{}{}{}", a, b, c)),))
+);
+
 mod tests {
     #[allow(unused_imports)]
     use crate::parser::*;
@@ -404,5 +545,90 @@ mod tests {
         let (leftover_2, commentless_syntax) = is_commentless_syntax(&printable_syntax).unwrap();
         assert_eq!(leftover_2, "");
         assert_eq!(commentless_syntax, "letter='a'|'b'|'c'|'d'|'e'|'f'|'g'|'h'|'i'|'j'|'k'|'l'|'m'|'n'|'o'|'p'|'q'|'r'|'s'|'t'|'u'|'v'|'w'|'x'|'y'|'z'|'A'|'B'|'C'|'D'|'E'|'F'|'G'|'H'|'I'|'J'|'K'|'L'|'M'|'N'|'O'|'P'|'Q'|'R'|'S'|'T'|'U'|'V'|'W'|'X'|'Y'|'Z';decimaldigit='0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9';");
+    }
+
+    #[test]
+    fn test_parse_informal_ebnf_itself() {
+        let input = r##"
+        (*
+            This example defines Extended BNF
+            informally. Many of the syntax rules include
+            a comment to explain their meaning; inside a
+            comment a meta identifier is enclosed in angle
+            brackets < and > to avoid confusion with
+            similar English words. The non-terminal symbols
+            <letter>, <decimal digit> and <character> are
+            not defined. The position of <comments> is
+            stated in a comment but not formally defined.
+            *)
+            syntax = syntax rule, {syntax rule};
+            syntax rule
+            = meta identifier, '=', definitions list, ';'
+            (* A <syntax rule> defines the sequences of
+            symbols represented by a <meta identifier> *);
+            definitions list
+            = single definition, {'|', single definition}
+            (* | separates alternative
+            <single definitions> *);
+            single definition = term, {',', term}
+            (* , separates successive <terms> *);
+            term = factor, ['-', exception]
+            (* A <term> represents any sequence of symbols
+            that is defined by the <factor> but
+            not defined by the <exception> *);
+            exception = factor
+            (* A <factor> may be used as an <exception>
+            if it could be replaced by a <factor>
+            containing no <meta identifiers> *);
+            factor = [integer, '*'], primary
+            (* The <integer> specifies the number of
+            repetitions of the <primary> *);
+            primary
+            = optional sequence | repeated sequence
+            | special sequence | grouped sequence
+            | meta identifier | terminal string | empty;
+            empty = ;
+            optional sequence = '[', definitions list, ']'
+            (* The brackets [ and ] enclose symbols
+            which are optional *);
+            repeated sequence = '{', definitions list, '}'
+            (* The brackets { and } enclose symbols
+            which may be repeated any number of times *);
+            grouped sequence = '(', definitions list, ')'
+            (* The brackets ( and ) allow any
+            <definitions list> to be a <primary> *);
+            terminal string
+            = "'", character - "'", {character - "'"}, "'"
+            | '"', character - '"', {character - '"'}, '"'
+            (* A <terminal string> represents the
+            <characters> between the quote symbols
+            '_' or "_" *);
+            meta identifier = letter, {letter | decimal digit}
+            (* A <meta identifier> is the name of a
+            syntactic element of the language being
+            defined *);
+            integer = decimal digit, {decimal digit};
+            special sequence = '?', {character - '?'}, '?'
+            (* The meaning of a <special sequence> is not
+            defined in the standard metalanguage. *);
+            comment = '(*', {comment symbol}, '*)'
+            (* A comment is allowed anywhere outside a
+            <terminal string>, <meta identifier>,
+            <integer> or <special sequence> *);
+            comment symbol
+            = comment | terminal string | special sequence
+            | character;
+        "##;
+        let (leftover_1, printable_syntax) = is_printable_syntax(input).unwrap();
+        assert_eq!(leftover_1, "");
+        let (leftover_2, commentless_syntax) = is_commentless_syntax(&printable_syntax).unwrap();
+        assert_eq!(leftover_2, "");
+        assert_eq!(commentless_syntax, "syntax=syntaxrule,{syntaxrule};syntaxrule=metaidentifier,'=',definitionslist,';';definitionslist=singledefinition,{'|',singledefinition};singledefinition=term,{',',term};term=factor,['-',exception];exception=factor;factor=[integer,'*'],primary;primary=optionalsequence|repeatedsequence|specialsequence|groupedsequence|metaidentifier|terminalstring|empty;empty=;optionalsequence='[',definitionslist,']';repeatedsequence='{',definitionslist,'}';groupedsequence='(',definitionslist,')';terminalstring=\"'\",character-\"'\",{character-\"'\"},\"'\"|'\"',character-'\"',{character-'\"'},'\"';metaidentifier=letter,{letter|decimaldigit};integer=decimaldigit,{decimaldigit};specialsequence='?',{character-'?'},'?';comment='(*',{commentsymbol},'*)';commentsymbol=comment|terminalstring|specialsequence|character;");
+        let (leftover_3, ebnf_syntax) = is_ebnf_syntax(&commentless_syntax).unwrap();
+        assert_eq!(leftover_3, "");
+        assert_eq!(
+            ebnf_syntax,
+            "syntax=syntaxrule,{syntaxrule};syntaxrule=metaidentifier,'=',definitionslist,';';definitionslist=singledefinition,{'|',singledefinition};singledefinition=term,{',',term};term=factor,['-',exception];exception=factor;factor=[integer,'*'],primary;primary=optionalsequence|repeatedsequence|specialsequence|groupedsequence|metaidentifier|terminalstring|empty;empty=;optionalsequence='[',definitionslist,']';repeatedsequence='{',definitionslist,'}';groupedsequence='(',definitionslist,')';terminalstring=\"'\",character-\"'\",{character-\"'\"},\"'\"|'\"',character-'\"',{character-'\"'},'\"';metaidentifier=letter,{letter|decimaldigit};integer=decimaldigit,{decimaldigit};specialsequence='?',{character-'?'},'?';comment='(*',{commentsymbol},'*)';commentsymbol=comment|terminalstring|specialsequence|character;"
+        );
     }
 }
