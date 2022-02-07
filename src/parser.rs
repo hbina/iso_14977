@@ -532,7 +532,6 @@ pub fn parse_ebnf(input: &str) -> EbnfSyntax {
     assert_eq!(leftover_1, "");
     let (leftover_2, commentless_syntax) = is_commentless_syntax(&printable_syntax).unwrap();
     assert_eq!(leftover_2, "");
-    assert_eq!(commentless_syntax, "syntax=syntaxrule,{syntaxrule};syntaxrule=metaidentifier,'=',definitionslist,';';definitionslist=singledefinition,{'|',singledefinition};singledefinition=term,{',',term};term=factor,['-',exception];exception=factor;factor=[integer,'*'],primary;primary=optionalsequence|repeatedsequence|specialsequence|groupedsequence|metaidentifier|terminalstring|empty;empty=;optionalsequence='[',definitionslist,']';repeatedsequence='{',definitionslist,'}';groupedsequence='(',definitionslist,')';terminalstring=\"'\",character-\"'\",{character-\"'\"},\"'\"|'\"',character-'\"',{character-'\"'},'\"';metaidentifier=letter,{letter|decimaldigit};integer=decimaldigit,{decimaldigit};specialsequence='?',{character-'?'},'?';comment='(*',{commentsymbol},'*)';commentsymbol=comment|terminalstring|specialsequence|character;");
     let (leftover_3, ebnf_syntax) = is_ebnf_syntax(&commentless_syntax).unwrap();
     assert_eq!(leftover_3, "");
     ebnf_syntax
