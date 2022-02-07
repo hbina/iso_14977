@@ -225,6 +225,7 @@ ebnf_rules!(
         )),
     ))
 );
+// FIXME: Do we want to support underscores here?
 ebnf_rules!(
     is_meta_identifier_character,
     &str,
@@ -278,11 +279,13 @@ ebnf_rules!(
             many0(is_bracketed_textual_comment)
         )))
     ))
-    .map(|(a, b, c, d)| format!(
-        "{}{}",
-        b,
-        d.iter().map(|(e, f)| format!("{}", e)).collect::<String>()
-    )),))
+    .map(|(a, b, c, d)| {
+        format!(
+            "{}{}",
+            b,
+            d.iter().map(|(e, f)| format!("{}", e)).collect::<String>()
+        )
+    }),))
 );
 
 mod tests {
@@ -332,19 +335,19 @@ mod tests {
 
     #[test]
     fn test_output_of_is_comment_symbol() {
+        let (leftover, result) = many0(is_comment_symbol)("Some comment*)").unwrap();
+        assert_eq!(leftover, "*)");
         assert_eq!(
-            many0(is_comment_symbol)("Some comment*)"),
-            Ok((
-                "*)",
-                vec!["Some".to_string(), " ".to_string(), "comment".to_string()]
-            ))
+            result,
+            vec!["Some".to_string(), " ".to_string(), "comment".to_string()]
         );
     }
 
     #[test]
     fn test_output_of_is_bracketed_textual_comment() {
-        let result = is_bracketed_textual_comment(r##"(*Some comment*)"##).unwrap();
-        println!("result:\n{:#?}", result);
+        let (leftover, result) = is_bracketed_textual_comment(r##"(*Some comment*)"##).unwrap();
+        assert_eq!(leftover, "");
+        assert_eq!(result, "(*Some comment*)");
     }
 
     #[test]
@@ -356,6 +359,7 @@ mod tests {
             letter = 'a' | 'b';"##,
         )
         .unwrap();
+        // TODO: Fix this so that whitespaces inside comments are preserved
         assert_eq!(
             gap_free_syntax,
             "(*testcomment*)(*secondcomment*)letter='a'|'b';"
@@ -371,79 +375,34 @@ mod tests {
             letter = 'a' | 'b';"##,
         )
         .unwrap();
+        // TODO: Fix this so that it also returns the comments
         let (_, commentless_syntax) = is_commentless_syntax(&gap_free_syntax).unwrap();
         assert_eq!(commentless_syntax, "letter='a'|'b';")
     }
 
     #[test]
     fn test_output_of_commentless_syntax() {
-        let result = is_printable_syntax(
-            r##"
-(*
-The syntax of Extended BNF can be defined using
-itself. There are four parts in this example,
-the first part names the characters, the second
-part defines the removal of unnecessary nonprinting characters, the third part defines the
-removal of textual comments, and the final part
-defines the structure of Extended BNF itself.
-Each syntax rule in this example starts with a
-comment that identifies the corresponding clause
-in the standard.
-The meaning of special-sequences is not defined
-in the standard. In this example (see the
-reference to 7.6) they represent control
-functions defined by ISO/IEC 6429:1992.
-Another special-sequence defines a
-syntactic-exception (see the reference to 4.7).
-*)
-(*
-The first part of the lexical syntax defines the
-characters in the 7-bit character set (ISO/IEC
-646:1991) that represent each terminal-character
-and gap-separator in Extended BNF.
-*)
-(* see 7.2 *)
-letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h'
-| 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p'
-| 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x'
-| 'y' | 'z'
-| 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
-| 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
-| 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
-| 'Y' | 'Z';
-(* see 7.2 *) decimal_digit
-= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
-| '8' | '9';
-(*
-The representation of the following
-terminal-characters is defined in clauses 7.3,
-7.4 and tables 1, 2.
-*)
-concatenate_symbol = ',';
-defining_symbol = '=';
-definition_separator_symbol = '|' | '//' | '!';
-end_comment_symbol = '*)';
-end_group_symbol = ')';
-end_option_symbol = ']' | '/)';
-end_repeat_symbol = '}' | ':)';
-except_symbol = '-';
-first_quote_symbol = "'";
-repetition_symbol = '*';
-second_quote_symbol = '"';
-special_sequence_symbol = '?';
-start_comment_symbol = '(*';
-start_group_symbol = '(';
-start_option_symbol = '[' | '(//';
-start_repeat_symbol = '{' | '(:';
-terminator_symbol = ';' | '.';
-(* see 7.5 *) other_character
-= ' ' | ':' | '+' | '_' | '%' | '@'
-| '&' | '#' | '$' | '<' | '>' | '\'
-| '^' | '`' | '~';
-(* see 7.6 *) space_character = ' ';
-                "##,
-        )
-        .unwrap();
-        println!("result:\n{:#?}", result);
+        let input = r##"
+        (*
+        The syntax of Extended BNF can be defined using
+        itself.
+        *)
+        (* see 7.2 *)
+        letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h'
+        | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p'
+        | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x'
+        | 'y' | 'z'
+        | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
+        | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
+        | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
+        | 'Y' | 'Z';
+        (* see 7.2 *) decimal digit
+        = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
+        | '8' | '9';"##;
+        let (leftover_1, printable_syntax) = is_printable_syntax(input).unwrap();
+        assert_eq!(leftover_1, "");
+        let (leftover_2, commentless_syntax) = is_commentless_syntax(&printable_syntax).unwrap();
+        assert_eq!(leftover_2, "");
+        assert_eq!(commentless_syntax, "letter='a'|'b'|'c'|'d'|'e'|'f'|'g'|'h'|'i'|'j'|'k'|'l'|'m'|'n'|'o'|'p'|'q'|'r'|'s'|'t'|'u'|'v'|'w'|'x'|'y'|'z'|'A'|'B'|'C'|'D'|'E'|'F'|'G'|'H'|'I'|'J'|'K'|'L'|'M'|'N'|'O'|'P'|'Q'|'R'|'S'|'T'|'U'|'V'|'W'|'X'|'Y'|'Z';decimaldigit='0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9';");
     }
 }
