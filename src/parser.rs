@@ -359,8 +359,8 @@ ebnf_rules!(
         is_definition_list,
         is_terminator_symbol
     ))
-    .map(|(_, b, c, _)| SyntaxRule {
-        name: b.to_string(),
+    .map(|(a, _, c, _)| SyntaxRule {
+        name: a,
         definition: c
     }),))
 );

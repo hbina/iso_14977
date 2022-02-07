@@ -208,7 +208,7 @@ fn test_parse_informal_ebnf_itself() {
     let expected_ebnf_syntax = EbnfSyntax {
         rules: vec![
             SyntaxRule {
-                name: "=".to_string(),
+                name: "syntax".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -245,7 +245,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "syntaxrule".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -286,7 +286,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "definitionslist".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -334,7 +334,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "singledefinition".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -380,7 +380,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "term".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -426,7 +426,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "exception".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![SyntacticTerm {
@@ -440,7 +440,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "factor".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -488,7 +488,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "primary".to_string(),
                 definition: DefinitionList {
                     definitions: vec![
                         SingleDefinition {
@@ -570,7 +570,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "empty".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![SyntacticTerm {
@@ -584,7 +584,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "optionalsequence".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -616,7 +616,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "repeatedsequence".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -648,7 +648,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "groupedsequence".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -680,7 +680,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "terminalstring".to_string(),
                 definition: DefinitionList {
                     definitions: vec![
                         SingleDefinition {
@@ -795,7 +795,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "metaidentifier".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -843,7 +843,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "integer".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -880,7 +880,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "specialsequence".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -927,7 +927,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "comment".to_string(),
                 definition: DefinitionList {
                     definitions: vec![SingleDefinition {
                         terms: vec![
@@ -969,7 +969,7 @@ fn test_parse_informal_ebnf_itself() {
                 },
             },
             SyntaxRule {
-                name: "=".to_string(),
+                name: "commentsymbol".to_string(),
                 definition: DefinitionList {
                     definitions: vec![
                         SingleDefinition {
