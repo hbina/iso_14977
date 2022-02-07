@@ -1,5 +1,4 @@
 use std::{
-    convert::From,
     error::Error,
     fmt::{self, Display, Formatter},
 };

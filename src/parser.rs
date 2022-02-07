@@ -1,10 +1,8 @@
-use nom::multi::many_m_n;
-#[allow(dead_code)]
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while_m_n},
+    bytes::complete::tag,
     character::complete::one_of,
-    combinator::{consumed, map_res, not, recognize, verify},
+    combinator::{opt, recognize, verify},
     multi::many0,
     sequence::delimited,
     sequence::tuple,
@@ -13,13 +11,13 @@ use nom::{
 
 macro_rules! ebnf_rules {
     ($func_name:ident, $out:ty, $pattern:expr) => {
-        fn $func_name(input: &str) -> NomResult<&str, $out> {
+        pub fn $func_name(input: &str) -> NomResult<&str, $out> {
             ($pattern)(input)
         }
     };
 
     ($func_name:ident, $out:ty, $($pattern:expr),+) => {
-        fn $func_name(input: &str) -> NomResult<&str, &str> {
+        pub fn $func_name(input: &str) -> NomResult<&str, &str> {
             alt((
                 $($pattern),+
             ))(input)
@@ -31,6 +29,15 @@ macro_rules! ebnf_rules {
 // character set (ISO/IEC 646:1991) that represent each terminal-character
 // and gap-separator in Extended BNF.
 
+// letter
+// = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h'
+// | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p'
+// | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x'
+// | 'y' | 'z'
+// | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
+// | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
+// | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
+// | 'Y' | 'Z';
 ebnf_rules!(
     is_letter,
     &str,
@@ -38,6 +45,9 @@ ebnf_rules!(
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
     ))
 );
+// decimal digit
+// = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
+// | '8' | '9';
 ebnf_rules!(is_decimal_digit, &str, recognize(one_of("0123456789")));
 ebnf_rules!(is_concatenate_symbol, &str, tag(","));
 ebnf_rules!(is_defining_symbol, &str, tag("="));
@@ -82,6 +92,27 @@ ebnf_rules!(is_form_feed, &str, tag("\\f"));
 
 // Second part fo the syntax defines the removal of unnecessary non-printing characters from a syntax
 
+// terminal character
+// = letter
+// | decimal digit
+// | concatenate symbol
+// | defining symbol
+// | definition separator symbol
+// | end comment symbol
+// | end group symbol
+// | end option symbol
+// | end repeat symbol
+// | except symbol
+// | first quote symbol
+// | repetition symbol
+// | second quote symbol
+// | special sequence symbol
+// | start comment symbol
+// | start group symbol
+// | start option symbol
+// | start repeat symbol
+// | terminator symbol
+// | other character;
 ebnf_rules!(
     is_terminal_character,
     &str,
@@ -172,11 +203,11 @@ ebnf_rules!(
         many0(is_gap_separator),
         many0(tuple((is_gap_free_symbol, many0(is_gap_separator)))),
     ))
-    .map(|(a, b, c, d)| {
+    .map(|(_, b, _, d)| {
         format!(
             "{}{}",
             b,
-            d.iter().map(|(e, f)| format!("{}", e)).collect::<String>()
+            d.iter().map(|(e, _)| format!("{}", e)).collect::<String>()
         )
     }),))
 );
@@ -284,11 +315,11 @@ ebnf_rules!(
             many0(is_bracketed_textual_comment)
         )))
     ))
-    .map(|(a, b, c, d)| {
+    .map(|(_, b, _, d)| {
         format!(
             "{}{}",
             b,
-            d.iter().map(|(e, f)| format!("{}", e)).collect::<String>()
+            d.iter().map(|(e, _)| format!("{}", e)).collect::<String>()
         )
     }),))
 );
@@ -296,27 +327,54 @@ ebnf_rules!(
 // The final part of the syntax defines the abstract syntax of Extended BNF, i.e. the
 // structure in terms of the commentless symbols.
 
+// (* see 4.2 *) syntax
+// = syntax rule, {syntax rule};
 ebnf_rules!(
     is_ebnf_syntax,
-    String,
+    EbnfSyntax,
     alt((
-        tuple((is_syntax_rule, many0(is_syntax_rule))).map(|(a, b)| format!("{}{}", a, b.join(""))),
+        tuple((is_syntax_rule, many0(is_syntax_rule))).map(|(a, mut b)| {
+            let mut rules = vec![a];
+            rules.append(&mut b);
+            EbnfSyntax { rules }
+        }),
     ))
 );
+#[derive(Debug, PartialEq, Eq)]
+pub struct EbnfSyntax {
+    pub rules: Vec<SyntaxRule>,
+}
+
+// (* see 4.3 *) syntax rule
+// = meta identifier, defining symbol,
+// definitions list, terminator symbol;
 ebnf_rules!(
     is_syntax_rule,
-    String,
+    SyntaxRule,
     alt((tuple((
         is_meta_identifier,
         is_defining_symbol,
         is_definition_list,
         is_terminator_symbol
     ))
-    .map(|(a, b, c, d)| format!("{}{}{}{}", a, b, c, d)),))
+    .map(|(_, b, c, _)| SyntaxRule {
+        name: b.to_string(),
+        definition: c
+    }),))
 );
+#[derive(Debug, PartialEq, Eq)]
+pub struct SyntaxRule {
+    pub name: String,
+    pub definition: DefinitionList,
+}
+
+// (* see 4.4 *) definitions list
+// = single definition,
+// {definition separator symbol,
+// single definition};
 ebnf_rules!(
     is_definition_list,
-    String,
+    DefinitionList,
     alt((tuple((
         is_single_definition,
         many0(tuple((
@@ -324,311 +382,158 @@ ebnf_rules!(
             is_single_definition
         )))
     ))
-    .map(|(a, b)| format!(
-        "{}{}",
-        a,
-        b.iter()
-            .map(|(c, d)| format!("{}{}", c, d))
-            .collect::<String>()
-    )),))
+    .map(|(a, b)| {
+        let mut definitions = vec![a];
+        definitions.extend(b.into_iter().map(|v| v.1));
+        DefinitionList { definitions }
+    }),))
 );
+#[derive(Debug, PartialEq, Eq)]
+pub struct DefinitionList {
+    pub definitions: Vec<SingleDefinition>,
+}
+
+// (* see 4.5 *) single definition
+// = syntactic term,
+// {concatenate symbol, syntactic term};
 ebnf_rules!(
     is_single_definition,
-    String,
+    SingleDefinition,
     alt((tuple((
         is_syntactic_term,
         many0(tuple((is_concatenate_symbol, is_syntactic_term)))
     ))
-    .map(|(a, b)| format!(
-        "{}{}",
-        a,
-        b.iter()
-            .map(|(c, d)| format!("{}{}", c, d))
-            .collect::<String>()
-    )),))
+    .map(|(a, b)| {
+        let mut terms = vec![a];
+        terms.extend(b.into_iter().map(|v| v.1));
+        SingleDefinition { terms }
+    }),))
 );
+#[derive(Debug, PartialEq, Eq)]
+pub struct SingleDefinition {
+    pub terms: Vec<SyntacticTerm>,
+}
+
+// (* see 4.6 *) syntactic term
+// = syntactic factor,
+// [except symbol, syntactic exception];
 ebnf_rules!(
     is_syntactic_term,
-    String,
+    SyntacticTerm,
     alt((tuple((
         is_syntactic_factor,
-        many_m_n(0, 1, tuple((is_except_symbol, is_syntax_exception)))
+        opt(tuple((is_except_symbol, is_syntax_exception)))
     ))
-    .map(|(a, b)| format!(
-        "{}{}",
-        a,
-        b.iter()
-            .map(|(c, d)| format!("{}{}", c, d))
-            .collect::<String>()
-    )),))
+    .map(|(a, b)| SyntacticTerm {
+        factor: a,
+        except: b.map(|v| v.1)
+    }),))
 );
+#[derive(Debug, PartialEq, Eq)]
+pub struct SyntacticTerm {
+    pub factor: SyntacticFactor,
+    pub except: Option<SyntacticFactor>,
+}
+
 // FIXME: Currentely unused
-ebnf_rules!(is_syntax_exception, String, is_syntactic_factor);
+ebnf_rules!(is_syntax_exception, SyntacticFactor, is_syntactic_factor);
+
+// (* see 4.8 *) syntactic factor
+// = [integer, repetition symbol],
+// syntactic primary
 ebnf_rules!(
     is_syntactic_factor,
-    String,
+    SyntacticFactor,
     alt((tuple((
-        many_m_n(0, 1, tuple((is_integer, is_repetition_symbol))),
+        opt(tuple((is_integer, is_repetition_symbol))),
         is_syntactic_primary
     ))
-    .map(|(a, b)| format!(
-        "{}{}",
-        a.iter()
-            .map(|(c, d)| format!("{}{}", c, d))
-            .collect::<String>(),
-        b
-    )),))
+    .map(|(a, b)| SyntacticFactor {
+        count: a
+            .map(|(l, _)| l.parse().expect("There's a bug with the is_integer parser"))
+            .unwrap_or(1),
+        primary: b
+    }),))
 );
+#[derive(Debug, PartialEq, Eq)]
+pub struct SyntacticFactor {
+    pub count: usize,
+    pub primary: SyntacticPrimary,
+}
+
+// (* see 4.10 *) syntactic primary
+// = optional sequence
+// | repeated sequence
+// | grouped sequence
+// | meta identifier
+// | terminal string
+// | special sequence
+// | empty sequence;
 ebnf_rules!(
     is_syntactic_primary,
-    String,
+    SyntacticPrimary,
     // NOTE: Use many_m_n to encode empty sequence
-    alt((many_m_n(
-        0,
-        1,
-        alt((
-            is_optional_sequence,
-            is_repeated_sequence,
-            is_grouped_sequence,
-            is_meta_identifier,
-            is_terminal_string,
-            is_special_sequence,
-            // is_empty_sequence
-        ))
-    )
-    .map(|a| a.join("")),))
+    alt((
+        is_optional_sequence,
+        is_repeated_sequence,
+        is_grouped_sequence,
+        is_meta_identifier.map(|v| SyntacticPrimary::MetaIdentifier(v)),
+        is_terminal_string.map(|v| SyntacticPrimary::TerminalString(v)),
+        is_special_sequence.map(|v| SyntacticPrimary::SpecialSequence(v)),
+        opt(tag("")).map(|_| SyntacticPrimary::EmptySequence)
+    ))
 );
+#[derive(Debug, PartialEq, Eq)]
+pub enum SyntacticPrimary {
+    Optional(DefinitionList),
+    Repeat(DefinitionList),
+    Group(DefinitionList),
+    MetaIdentifier(String),
+    TerminalString(String),
+    SpecialSequence(String),
+    EmptySequence,
+}
+
 ebnf_rules!(
     is_optional_sequence,
-    String,
+    SyntacticPrimary,
     alt((tuple((
         is_start_option_symbol,
         is_definition_list,
         is_end_option_symbol
     ))
-    .map(|(a, b, c)| format!("{}{}{}", a, b, c)),))
+    .map(|(_, b, _)| SyntacticPrimary::Optional(b)),))
 );
 ebnf_rules!(
     is_repeated_sequence,
-    String,
+    SyntacticPrimary,
     alt((tuple((
         is_start_repeat_symbol,
         is_definition_list,
         is_end_repeat_symbol
     ))
-    .map(|(a, b, c)| format!("{}{}{}", a, b, c)),))
+    .map(|(_, b, _)| SyntacticPrimary::Repeat(b)),))
 );
 ebnf_rules!(
     is_grouped_sequence,
-    String,
+    SyntacticPrimary,
     alt((tuple((
         is_start_group_symbol,
         is_definition_list,
         is_end_group_symbol
     ))
-    .map(|(a, b, c)| format!("{}{}{}", a, b, c)),))
+    .map(|(_, b, _)| SyntacticPrimary::Group(b)),))
 );
 
-mod tests {
-    #[allow(unused_imports)]
-    use crate::parser::*;
-
-    #[test]
-    fn test_output_of_gap_free_symbol() {
-        assert_eq!(
-            is_gap_free_symbol("'hello'"),
-            Ok(("", "'hello'".to_string()))
-        );
-        assert_eq!(
-            is_gap_free_symbol("\"hello\""),
-            Ok(("", "\"hello\"".to_string()))
-        );
-        assert_eq!(is_gap_free_symbol("a"), Ok(("", "a".to_string())));
-        assert_eq!(is_gap_free_symbol("ab"), Ok(("b", "a".to_string())));
-        assert_eq!(
-            is_gap_free_symbol("hello world"),
-            Ok(("ello world", "h".to_string()))
-        );
-        assert_eq!(
-            is_gap_free_symbol("'hello world'"),
-            Ok(("", "'hello world'".to_string()))
-        );
-        assert_eq!(
-            is_gap_free_symbol("\"hello world\""),
-            Ok(("", "\"hello world\"".to_string()))
-        );
-        assert_eq!(
-            is_gap_free_symbol("'hello' world"),
-            Ok((" world", "'hello'".to_string()))
-        );
-        assert_eq!(
-            is_gap_free_symbol("\"hello\" world"),
-            Ok((" world", "\"hello\"".to_string()))
-        );
-        assert!(is_gap_free_symbol("\n").is_err());
-    }
-
-    #[test]
-    fn test_output_of_terminal_string() {
-        assert!(is_terminal_string("'hello'").is_ok());
-        assert!(is_terminal_string("\"world\"").is_ok());
-    }
-
-    #[test]
-    fn test_output_of_is_comment_symbol() {
-        let (leftover, result) = many0(is_comment_symbol)("Some comment*)").unwrap();
-        assert_eq!(leftover, "*)");
-        assert_eq!(
-            result,
-            vec!["Some".to_string(), " ".to_string(), "comment".to_string()]
-        );
-    }
-
-    #[test]
-    fn test_output_of_is_bracketed_textual_comment() {
-        let (leftover, result) = is_bracketed_textual_comment(r##"(*Some comment*)"##).unwrap();
-        assert_eq!(leftover, "");
-        assert_eq!(result, "(*Some comment*)");
-    }
-
-    #[test]
-    fn test_output_of_printable_syntax() {
-        let (_, gap_free_syntax) = is_printable_syntax(
-            r##"
-            (*test comment*)
-            (*second comment*)
-            letter = 'a' | 'b';"##,
-        )
-        .unwrap();
-        // TODO: Fix this so that whitespaces inside comments are preserved
-        assert_eq!(
-            gap_free_syntax,
-            "(*testcomment*)(*secondcomment*)letter='a'|'b';"
-        );
-    }
-
-    #[test]
-    fn test_output_of_commentless_syntax_with_comment_only() {
-        let (_, gap_free_syntax) = is_printable_syntax(
-            r##"
-            (*test comment*)
-            (*second comment*)
-            letter = 'a' | 'b';"##,
-        )
-        .unwrap();
-        // TODO: Fix this so that it also returns the comments
-        let (_, commentless_syntax) = is_commentless_syntax(&gap_free_syntax).unwrap();
-        assert_eq!(commentless_syntax, "letter='a'|'b';")
-    }
-
-    #[test]
-    fn test_output_of_commentless_syntax() {
-        let input = r##"
-        (*
-        The syntax of Extended BNF can be defined using
-        itself.
-        *)
-        (* see 7.2 *)
-        letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h'
-        | 'i' | 'j' | 'k' | 'l' | 'm' | 'n' | 'o' | 'p'
-        | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x'
-        | 'y' | 'z'
-        | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H'
-        | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P'
-        | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X'
-        | 'Y' | 'Z';
-        (* see 7.2 *) decimal digit
-        = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7'
-        | '8' | '9';"##;
-        let (leftover_1, printable_syntax) = is_printable_syntax(input).unwrap();
-        assert_eq!(leftover_1, "");
-        let (leftover_2, commentless_syntax) = is_commentless_syntax(&printable_syntax).unwrap();
-        assert_eq!(leftover_2, "");
-        assert_eq!(commentless_syntax, "letter='a'|'b'|'c'|'d'|'e'|'f'|'g'|'h'|'i'|'j'|'k'|'l'|'m'|'n'|'o'|'p'|'q'|'r'|'s'|'t'|'u'|'v'|'w'|'x'|'y'|'z'|'A'|'B'|'C'|'D'|'E'|'F'|'G'|'H'|'I'|'J'|'K'|'L'|'M'|'N'|'O'|'P'|'Q'|'R'|'S'|'T'|'U'|'V'|'W'|'X'|'Y'|'Z';decimaldigit='0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9';");
-    }
-
-    #[test]
-    fn test_parse_informal_ebnf_itself() {
-        let input = r##"
-        (*
-            This example defines Extended BNF
-            informally. Many of the syntax rules include
-            a comment to explain their meaning; inside a
-            comment a meta identifier is enclosed in angle
-            brackets < and > to avoid confusion with
-            similar English words. The non-terminal symbols
-            <letter>, <decimal digit> and <character> are
-            not defined. The position of <comments> is
-            stated in a comment but not formally defined.
-            *)
-            syntax = syntax rule, {syntax rule};
-            syntax rule
-            = meta identifier, '=', definitions list, ';'
-            (* A <syntax rule> defines the sequences of
-            symbols represented by a <meta identifier> *);
-            definitions list
-            = single definition, {'|', single definition}
-            (* | separates alternative
-            <single definitions> *);
-            single definition = term, {',', term}
-            (* , separates successive <terms> *);
-            term = factor, ['-', exception]
-            (* A <term> represents any sequence of symbols
-            that is defined by the <factor> but
-            not defined by the <exception> *);
-            exception = factor
-            (* A <factor> may be used as an <exception>
-            if it could be replaced by a <factor>
-            containing no <meta identifiers> *);
-            factor = [integer, '*'], primary
-            (* The <integer> specifies the number of
-            repetitions of the <primary> *);
-            primary
-            = optional sequence | repeated sequence
-            | special sequence | grouped sequence
-            | meta identifier | terminal string | empty;
-            empty = ;
-            optional sequence = '[', definitions list, ']'
-            (* The brackets [ and ] enclose symbols
-            which are optional *);
-            repeated sequence = '{', definitions list, '}'
-            (* The brackets { and } enclose symbols
-            which may be repeated any number of times *);
-            grouped sequence = '(', definitions list, ')'
-            (* The brackets ( and ) allow any
-            <definitions list> to be a <primary> *);
-            terminal string
-            = "'", character - "'", {character - "'"}, "'"
-            | '"', character - '"', {character - '"'}, '"'
-            (* A <terminal string> represents the
-            <characters> between the quote symbols
-            '_' or "_" *);
-            meta identifier = letter, {letter | decimal digit}
-            (* A <meta identifier> is the name of a
-            syntactic element of the language being
-            defined *);
-            integer = decimal digit, {decimal digit};
-            special sequence = '?', {character - '?'}, '?'
-            (* The meaning of a <special sequence> is not
-            defined in the standard metalanguage. *);
-            comment = '(*', {comment symbol}, '*)'
-            (* A comment is allowed anywhere outside a
-            <terminal string>, <meta identifier>,
-            <integer> or <special sequence> *);
-            comment symbol
-            = comment | terminal string | special sequence
-            | character;
-        "##;
-        let (leftover_1, printable_syntax) = is_printable_syntax(input).unwrap();
-        assert_eq!(leftover_1, "");
-        let (leftover_2, commentless_syntax) = is_commentless_syntax(&printable_syntax).unwrap();
-        assert_eq!(leftover_2, "");
-        assert_eq!(commentless_syntax, "syntax=syntaxrule,{syntaxrule};syntaxrule=metaidentifier,'=',definitionslist,';';definitionslist=singledefinition,{'|',singledefinition};singledefinition=term,{',',term};term=factor,['-',exception];exception=factor;factor=[integer,'*'],primary;primary=optionalsequence|repeatedsequence|specialsequence|groupedsequence|metaidentifier|terminalstring|empty;empty=;optionalsequence='[',definitionslist,']';repeatedsequence='{',definitionslist,'}';groupedsequence='(',definitionslist,')';terminalstring=\"'\",character-\"'\",{character-\"'\"},\"'\"|'\"',character-'\"',{character-'\"'},'\"';metaidentifier=letter,{letter|decimaldigit};integer=decimaldigit,{decimaldigit};specialsequence='?',{character-'?'},'?';comment='(*',{commentsymbol},'*)';commentsymbol=comment|terminalstring|specialsequence|character;");
-        let (leftover_3, ebnf_syntax) = is_ebnf_syntax(&commentless_syntax).unwrap();
-        assert_eq!(leftover_3, "");
-        assert_eq!(
-            ebnf_syntax,
-            "syntax=syntaxrule,{syntaxrule};syntaxrule=metaidentifier,'=',definitionslist,';';definitionslist=singledefinition,{'|',singledefinition};singledefinition=term,{',',term};term=factor,['-',exception];exception=factor;factor=[integer,'*'],primary;primary=optionalsequence|repeatedsequence|specialsequence|groupedsequence|metaidentifier|terminalstring|empty;empty=;optionalsequence='[',definitionslist,']';repeatedsequence='{',definitionslist,'}';groupedsequence='(',definitionslist,')';terminalstring=\"'\",character-\"'\",{character-\"'\"},\"'\"|'\"',character-'\"',{character-'\"'},'\"';metaidentifier=letter,{letter|decimaldigit};integer=decimaldigit,{decimaldigit};specialsequence='?',{character-'?'},'?';comment='(*',{commentsymbol},'*)';commentsymbol=comment|terminalstring|specialsequence|character;"
-        );
-    }
+// Export a convenient function
+#[allow(dead_code)]
+pub fn parse_ebnf(input: &str) -> EbnfSyntax {
+    let (leftover_1, printable_syntax) = is_printable_syntax(input).unwrap();
+    assert_eq!(leftover_1, "");
+    let (leftover_2, commentless_syntax) = is_commentless_syntax(&printable_syntax).unwrap();
+    assert_eq!(leftover_2, "");
+    assert_eq!(commentless_syntax, "syntax=syntaxrule,{syntaxrule};syntaxrule=metaidentifier,'=',definitionslist,';';definitionslist=singledefinition,{'|',singledefinition};singledefinition=term,{',',term};term=factor,['-',exception];exception=factor;factor=[integer,'*'],primary;primary=optionalsequence|repeatedsequence|specialsequence|groupedsequence|metaidentifier|terminalstring|empty;empty=;optionalsequence='[',definitionslist,']';repeatedsequence='{',definitionslist,'}';groupedsequence='(',definitionslist,')';terminalstring=\"'\",character-\"'\",{character-\"'\"},\"'\"|'\"',character-'\"',{character-'\"'},'\"';metaidentifier=letter,{letter|decimaldigit};integer=decimaldigit,{decimaldigit};specialsequence='?',{character-'?'},'?';comment='(*',{commentsymbol},'*)';commentsymbol=comment|terminalstring|specialsequence|character;");
+    let (leftover_3, ebnf_syntax) = is_ebnf_syntax(&commentless_syntax).unwrap();
+    assert_eq!(leftover_3, "");
+    ebnf_syntax
 }
