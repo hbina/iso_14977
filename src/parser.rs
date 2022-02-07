@@ -480,7 +480,7 @@ ebnf_rules!(
         is_repeated_sequence,
         is_grouped_sequence,
         is_meta_identifier.map(|v| SyntacticPrimary::MetaIdentifier(v)),
-        is_terminal_string.map(|v| SyntacticPrimary::TerminalString(v)),
+        is_terminal_string.map(|v| SyntacticPrimary::TerminalString(v[1..v.len() - 1].to_string())),
         is_special_sequence.map(|v| SyntacticPrimary::SpecialSequence(v)),
         opt(tag("")).map(|_| SyntacticPrimary::EmptySequence)
     ))

@@ -261,7 +261,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("'='".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("=".to_string()),
                                 },
                                 except: None,
                             },
@@ -277,7 +277,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("';'".to_string()),
+                                    primary: SyntacticPrimary::TerminalString(";".to_string()),
                                 },
                                 except: None,
                             },
@@ -309,7 +309,7 @@ fn test_parse_informal_ebnf_itself() {
                                                     factor: SyntacticFactor {
                                                         count: 1,
                                                         primary: SyntacticPrimary::TerminalString(
-                                                            "'|'".to_string(),
+                                                            "|".to_string(),
                                                         ),
                                                     },
                                                     except: None,
@@ -355,7 +355,7 @@ fn test_parse_informal_ebnf_itself() {
                                                     factor: SyntacticFactor {
                                                         count: 1,
                                                         primary: SyntacticPrimary::TerminalString(
-                                                            "','".to_string(),
+                                                            ",".to_string(),
                                                         ),
                                                     },
                                                     except: None,
@@ -401,7 +401,7 @@ fn test_parse_informal_ebnf_itself() {
                                                     factor: SyntacticFactor {
                                                         count: 1,
                                                         primary: SyntacticPrimary::TerminalString(
-                                                            "'-'".to_string(),
+                                                            "-".to_string(),
                                                         ),
                                                     },
                                                     except: None,
@@ -463,7 +463,7 @@ fn test_parse_informal_ebnf_itself() {
                                                     factor: SyntacticFactor {
                                                         count: 1,
                                                         primary: SyntacticPrimary::TerminalString(
-                                                            "'*'".to_string(),
+                                                            "*".to_string(),
                                                         ),
                                                     },
                                                     except: None,
@@ -591,7 +591,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("'['".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("[".to_string()),
                                 },
                                 except: None,
                             },
@@ -607,7 +607,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("']'".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("]".to_string()),
                                 },
                                 except: None,
                             },
@@ -623,7 +623,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("'{'".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("{".to_string()),
                                 },
                                 except: None,
                             },
@@ -639,7 +639,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("'}'".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("}".to_string()),
                                 },
                                 except: None,
                             },
@@ -655,7 +655,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("'('".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("(".to_string()),
                                 },
                                 except: None,
                             },
@@ -671,7 +671,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("')'".to_string()),
+                                    primary: SyntacticPrimary::TerminalString(")".to_string()),
                                 },
                                 except: None,
                             },
@@ -688,9 +688,7 @@ fn test_parse_informal_ebnf_itself() {
                                 SyntacticTerm {
                                     factor: SyntacticFactor {
                                         count: 1,
-                                        primary: SyntacticPrimary::TerminalString(
-                                            "\"'\"".to_string(),
-                                        ),
+                                        primary: SyntacticPrimary::TerminalString("'".to_string()),
                                     },
                                     except: None,
                                 },
@@ -703,9 +701,7 @@ fn test_parse_informal_ebnf_itself() {
                                     },
                                     except: Some(SyntacticFactor {
                                         count: 1,
-                                        primary: SyntacticPrimary::TerminalString(
-                                            "\"'\"".to_string(),
-                                        ),
+                                        primary: SyntacticPrimary::TerminalString("'".to_string()),
                                     }),
                                 },
                                 SyntacticTerm {
@@ -723,7 +719,7 @@ fn test_parse_informal_ebnf_itself() {
                                                     except: Some(SyntacticFactor {
                                                         count: 1,
                                                         primary: SyntacticPrimary::TerminalString(
-                                                            "\"'\"".to_string(),
+                                                            "'".to_string(),
                                                         ),
                                                     }),
                                                 }],
@@ -735,9 +731,7 @@ fn test_parse_informal_ebnf_itself() {
                                 SyntacticTerm {
                                     factor: SyntacticFactor {
                                         count: 1,
-                                        primary: SyntacticPrimary::TerminalString(
-                                            "\"'\"".to_string(),
-                                        ),
+                                        primary: SyntacticPrimary::TerminalString("'".to_string()),
                                     },
                                     except: None,
                                 },
@@ -748,9 +742,7 @@ fn test_parse_informal_ebnf_itself() {
                                 SyntacticTerm {
                                     factor: SyntacticFactor {
                                         count: 1,
-                                        primary: SyntacticPrimary::TerminalString(
-                                            "'\"'".to_string(),
-                                        ),
+                                        primary: SyntacticPrimary::TerminalString("\"".to_string()),
                                     },
                                     except: None,
                                 },
@@ -763,9 +755,7 @@ fn test_parse_informal_ebnf_itself() {
                                     },
                                     except: Some(SyntacticFactor {
                                         count: 1,
-                                        primary: SyntacticPrimary::TerminalString(
-                                            "'\"'".to_string(),
-                                        ),
+                                        primary: SyntacticPrimary::TerminalString("\"".to_string()),
                                     }),
                                 },
                                 SyntacticTerm {
@@ -783,7 +773,7 @@ fn test_parse_informal_ebnf_itself() {
                                                     except: Some(SyntacticFactor {
                                                         count: 1,
                                                         primary: SyntacticPrimary::TerminalString(
-                                                            "'\"'".to_string(),
+                                                            "\"".to_string(),
                                                         ),
                                                     }),
                                                 }],
@@ -795,9 +785,7 @@ fn test_parse_informal_ebnf_itself() {
                                 SyntacticTerm {
                                     factor: SyntacticFactor {
                                         count: 1,
-                                        primary: SyntacticPrimary::TerminalString(
-                                            "'\"'".to_string(),
-                                        ),
+                                        primary: SyntacticPrimary::TerminalString("\"".to_string()),
                                     },
                                     except: None,
                                 },
@@ -899,7 +887,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("'?'".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("?".to_string()),
                                 },
                                 except: None,
                             },
@@ -918,7 +906,7 @@ fn test_parse_informal_ebnf_itself() {
                                                 except: Some(SyntacticFactor {
                                                     count: 1,
                                                     primary: SyntacticPrimary::TerminalString(
-                                                        "'?'".to_string(),
+                                                        "?".to_string(),
                                                     ),
                                                 }),
                                             }],
@@ -930,7 +918,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("'?'".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("?".to_string()),
                                 },
                                 except: None,
                             },
@@ -946,7 +934,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("'(*'".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("(*".to_string()),
                                 },
                                 except: None,
                             },
@@ -972,7 +960,7 @@ fn test_parse_informal_ebnf_itself() {
                             SyntacticTerm {
                                 factor: SyntacticFactor {
                                     count: 1,
-                                    primary: SyntacticPrimary::TerminalString("'*)'".to_string()),
+                                    primary: SyntacticPrimary::TerminalString("*)".to_string()),
                                 },
                                 except: None,
                             },
