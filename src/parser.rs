@@ -342,7 +342,7 @@ ebnf_rules!(
         }),
     ))
 );
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EbnfSyntax {
     pub rules: Vec<SyntaxRule>,
 }
@@ -364,7 +364,7 @@ ebnf_rules!(
         definition: c
     }),))
 );
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SyntaxRule {
     pub name: String,
     pub definition: DefinitionList,
@@ -390,7 +390,7 @@ ebnf_rules!(
         DefinitionList { definitions }
     }),))
 );
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DefinitionList {
     pub definitions: Vec<SingleDefinition>,
 }
@@ -411,7 +411,7 @@ ebnf_rules!(
         SingleDefinition { terms }
     }),))
 );
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SingleDefinition {
     pub terms: Vec<SyntacticTerm>,
 }
@@ -431,7 +431,7 @@ ebnf_rules!(
         except: b.map(|v| v.1)
     }),))
 );
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SyntacticTerm {
     pub factor: SyntacticFactor,
     pub except: Option<SyntacticFactor>,
@@ -457,7 +457,7 @@ ebnf_rules!(
         primary: b
     }),))
 );
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SyntacticFactor {
     pub count: usize,
     pub primary: SyntacticPrimary,
@@ -485,7 +485,7 @@ ebnf_rules!(
         opt(tag("")).map(|_| SyntacticPrimary::EmptySequence)
     ))
 );
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SyntacticPrimary {
     Optional(DefinitionList),
     Repeat(DefinitionList),
